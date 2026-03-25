@@ -87,6 +87,13 @@ curl -s http://127.0.0.1:8090/api/public/health
 - `GET /api/secure/ping`
   - Bearer 토큰 필요
 
+## Postman
+
+- 컬렉션: [postman/token-api-server.collection.json](/Users/mingulee/vscode/token-api-server/postman/token-api-server.collection.json)
+- 환경: [postman/token-api-server.local.postman_environment.json](/Users/mingulee/vscode/token-api-server/postman/token-api-server.local.postman_environment.json)
+
+순서는 `Issue Token` 실행 후 `Secure Me` 또는 `Secure Ping`을 호출하면 됩니다. 발급 응답의 `accessToken`은 테스트 스크립트가 자동으로 환경 변수에 저장합니다.
+
 ## Notes
 
 - `clientId`는 필수입니다.

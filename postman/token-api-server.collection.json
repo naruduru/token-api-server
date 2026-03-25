@@ -1,0 +1,129 @@
+{
+  "info": {
+    "_postman_id": "8d33ff2f-cabc-4ef1-b3cb-b4ac8b2326fd",
+    "name": "token-api-server",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Public Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "public",
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Issue Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token issued', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "if (json.accessToken) {",
+              "  pm.environment.set('accessToken', json.accessToken);",
+              "}",
+              "if (json.tokenId) {",
+              "  pm.environment.set('tokenId', json.tokenId);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Admin-Secret",
+            "value": "{{adminSecret}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"clientId\": \"demo-client\",\n  \"scopes\": [\"read\", \"write\"],\n  \"ttlSeconds\": 600\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/tokens",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "tokens"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Secure Me",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/secure/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "secure",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Secure Ping",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/secure/ping",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "secure",
+            "ping"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
