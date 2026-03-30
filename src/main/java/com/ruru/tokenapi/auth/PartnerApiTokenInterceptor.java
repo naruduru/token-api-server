@@ -1,6 +1,7 @@
 package com.ruru.tokenapi.auth;
 
-import com.ruru.tokenapi.token.TokenService;
+import com.ruru.tokenapi.partner.PartnerChannel;
+import com.ruru.tokenapi.partner.PartnerTokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
@@ -12,23 +13,25 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import java.io.IOException;
 
 @Component
-public class BearerTokenInterceptor implements HandlerInterceptor {
-    private final TokenService tokenService;
+public class PartnerApiTokenInterceptor implements HandlerInterceptor {
+    private final PartnerTokenService partnerTokenService;
 
-    public BearerTokenInterceptor(TokenService tokenService) {
-        this.tokenService = tokenService;
+    public PartnerApiTokenInterceptor(PartnerTokenService partnerTokenService) {
+        this.partnerTokenService = partnerTokenService;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-        String token = extractBearerToken(authorization);
+        String token = extractBearerToken(request.getHeader(HttpHeaders.AUTHORIZATION));
         if (token == null) {
             writeUnauthorized(response, "Missing Bearer token");
             return false;
         }
 
-        AuthenticatedToken authenticatedToken = tokenService.authenticate(token);
+        PartnerChannel expectedChannel = request.getRequestURI().startsWith("/api/internal/")
+            ? PartnerChannel.INTERNAL_SYSTEM
+            : PartnerChannel.EXTERNAL_USER;
+        AuthenticatedPartnerToken authenticatedToken = partnerTokenService.authenticate(expectedChannel, token);
         if (authenticatedToken == null) {
             writeUnauthorized(response, "Invalid or expired token");
             return false;
@@ -39,10 +42,14 @@ public class BearerTokenInterceptor implements HandlerInterceptor {
     }
 
     private String extractBearerToken(String authorization) {
-        if (authorization == null || authorization.isBlank()) return null;
-        if (!authorization.regionMatches(true, 0, "Bearer ", 0, 7)) return null;
-        String value = authorization.substring(7).trim();
-        return value.isBlank() ? null : value;
+        if (authorization == null || authorization.isBlank()) {
+            return null;
+        }
+        if (!authorization.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            return null;
+        }
+        String token = authorization.substring(7).trim();
+        return token.isBlank() ? null : token;
     }
 
     private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {

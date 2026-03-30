@@ -25,28 +25,7 @@
       "response": []
     },
     {
-      "name": "Issue Token",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('token issued', function () {",
-              "  pm.response.to.have.status(200);",
-              "});",
-              "",
-              "var json = pm.response.json();",
-              "if (json.accessToken) {",
-              "  pm.environment.set('accessToken', json.accessToken);",
-              "}",
-              "if (json.tokenId) {",
-              "  pm.environment.set('tokenId', json.tokenId);",
-              "}"
-            ]
-          }
-        }
-      ],
+      "name": "Register External User Client",
       "request": {
         "method": "POST",
         "header": [
@@ -61,64 +40,188 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"clientId\": \"demo-client\",\n  \"scopes\": [\"read\", \"write\"],\n  \"ttlSeconds\": 600\n}"
+          "raw": "{\n  \"clientId\": \"partner-app\",\n  \"clientSecret\": \"secret123\",\n  \"active\": true,\n  \"channel\": \"EXTERNAL_USER\",\n  \"scopes\": [\"member.read\", \"order.read\"]\n}"
         },
         "url": {
-          "raw": "{{baseUrl}}/api/admin/tokens",
+          "raw": "{{baseUrl}}/api/admin/partner-clients",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "api",
             "admin",
-            "tokens"
+            "partner-clients"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "Secure Me",
+      "name": "Issue External User Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token issued', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "if (json.accessToken) {",
+              "  pm.environment.set('externalAccessToken', json.accessToken);",
+              "}"
+            ]
+          }
+        }
+      ],
       "request": {
-        "method": "GET",
+        "method": "POST",
         "header": [
           {
-            "key": "Authorization",
-            "value": "Bearer {{accessToken}}"
+            "key": "Content-Type",
+            "value": "application/json"
           }
         ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"clientId\": \"partner-app\",\n  \"clientSecret\": \"secret123\",\n  \"userId\": \"user-100\"\n}"
+        },
         "url": {
-          "raw": "{{baseUrl}}/api/secure/me",
+          "raw": "{{baseUrl}}/api/external/token",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "api",
-            "secure",
-            "me"
+            "external",
+            "token"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "Secure Ping",
+      "name": "External Ping",
       "request": {
         "method": "GET",
         "header": [
           {
             "key": "Authorization",
-            "value": "Bearer {{accessToken}}"
+            "value": "Bearer {{externalAccessToken}}"
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/api/secure/ping",
+          "raw": "{{baseUrl}}/api/external/ping",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "api",
-            "secure",
+            "external",
+            "ping"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Register Internal System Client",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Admin-Secret",
+            "value": "{{adminSecret}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"clientId\": \"intranet-batch\",\n  \"clientSecret\": \"internal-secret\",\n  \"active\": true,\n  \"channel\": \"INTERNAL_SYSTEM\",\n  \"systemName\": \"order-sync-server\",\n  \"scopes\": [\"batch.read\", \"batch.write\"]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/partner-clients",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "partner-clients"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Issue Internal System Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token issued', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "if (json.accessToken) {",
+              "  pm.environment.set('internalAccessToken', json.accessToken);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"clientId\": \"intranet-batch\",\n  \"clientSecret\": \"internal-secret\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/internal/token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "internal",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Internal Ping",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{internalAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/internal/ping",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "internal",
             "ping"
           ]
         }

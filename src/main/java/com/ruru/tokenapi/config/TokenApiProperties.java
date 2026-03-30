@@ -5,8 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "token.api")
 public class TokenApiProperties {
     private String adminSecret;
-    private long defaultTtlSeconds = 3600;
-    private String tokenPrefix = "ruru";
+    private long accessTokenTtlSeconds = 1800;
+    private String issuer = "token-api-server";
+    private String jwtSecret = "change-me-jwt-secret-change-me-jwt-secret";
 
     public String getAdminSecret() {
         return adminSecret;
@@ -16,19 +17,27 @@ public class TokenApiProperties {
         this.adminSecret = adminSecret;
     }
 
-    public long getDefaultTtlSeconds() {
-        return defaultTtlSeconds;
+    public long getAccessTokenTtlSeconds() {
+        return accessTokenTtlSeconds;
     }
 
-    public void setDefaultTtlSeconds(long defaultTtlSeconds) {
-        this.defaultTtlSeconds = defaultTtlSeconds;
+    public void setAccessTokenTtlSeconds(long accessTokenTtlSeconds) {
+        this.accessTokenTtlSeconds = accessTokenTtlSeconds;
     }
 
-    public String getTokenPrefix() {
-        return tokenPrefix;
+    public String getIssuer() {
+        return issuer;
     }
 
-    public void setTokenPrefix(String tokenPrefix) {
-        this.tokenPrefix = tokenPrefix;
+    public void setIssuer(String issuer) {
+        this.issuer = issuer;
+    }
+
+    public String getJwtSecret() {
+        return jwtSecret;
+    }
+
+    public void setJwtSecret(String jwtSecret) {
+        this.jwtSecret = jwtSecret;
     }
 }
