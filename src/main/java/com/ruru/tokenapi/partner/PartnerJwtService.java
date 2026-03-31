@@ -23,10 +23,8 @@ public class PartnerJwtService {
         this.secretKey = Keys.hmacShaKeyFor(properties.getJwtSecret().getBytes(StandardCharsets.UTF_8));
     }
 
-    public String issueToken(PartnerChannel channel,
-                             String clientId,
+    public String issueToken(String clientId,
                              String tokenId,
-                             String userId,
                              String systemName,
                              List<String> scopes,
                              Instant issuedAt,
@@ -37,8 +35,7 @@ public class PartnerJwtService {
             .setIssuedAt(Date.from(issuedAt))
             .setExpiration(Date.from(expiresAt))
             .setId(tokenId)
-            .claim("type", channel.name())
-            .claim("userId", userId)
+            .claim("type", PartnerChannel.INTERNAL_SYSTEM.name())
             .claim("systemName", systemName)
             .claim("scope", scopes)
             .signWith(secretKey)
@@ -56,13 +53,14 @@ public class PartnerJwtService {
             List<String> scopes = rawScopes instanceof List<?> list
                 ? list.stream().map(String::valueOf).toList()
                 : List.of();
-            String rawType = payload.get("type", String.class);
+            String tokenType = payload.get("type", String.class);
+            if (!PartnerChannel.INTERNAL_SYSTEM.name().equals(tokenType)) {
+                return null;
+            }
             return new ParsedPartnerToken(
                 payload.getId(),
                 payload.getSubject(),
                 payload.getIssuer(),
-                rawType == null ? null : PartnerChannel.valueOf(rawType),
-                payload.get("userId", String.class),
                 payload.get("systemName", String.class),
                 scopes,
                 payload.getExpiration().toInstant()
