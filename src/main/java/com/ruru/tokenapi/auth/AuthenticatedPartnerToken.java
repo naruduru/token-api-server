@@ -8,7 +8,6 @@ public record AuthenticatedPartnerToken(
     String tokenId,
     String clientId,
     PartnerChannel channel,
-    String userId,
     String systemName,
     List<String> scopes
 ) {

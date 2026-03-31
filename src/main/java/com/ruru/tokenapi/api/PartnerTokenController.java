@@ -3,7 +3,6 @@ package com.ruru.tokenapi.api;
 import com.ruru.tokenapi.partner.IssuePartnerTokenRequest;
 import com.ruru.tokenapi.partner.IssuePartnerTokenResponse;
 import com.ruru.tokenapi.partner.IssuedPartnerToken;
-import com.ruru.tokenapi.partner.PartnerChannel;
 import com.ruru.tokenapi.partner.PartnerTokenService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/internal")
 public class PartnerTokenController {
     private final PartnerTokenService partnerTokenService;
 
@@ -23,14 +22,9 @@ public class PartnerTokenController {
         this.partnerTokenService = partnerTokenService;
     }
 
-    @PostMapping("/external/token")
-    public IssuePartnerTokenResponse issueExternalToken(@RequestBody IssuePartnerTokenRequest request) {
-        return toResponse(partnerTokenService.issueToken(PartnerChannel.EXTERNAL_USER, request));
-    }
-
-    @PostMapping("/internal/token")
+    @PostMapping("/token")
     public IssuePartnerTokenResponse issueInternalToken(@RequestBody IssuePartnerTokenRequest request) {
-        return toResponse(partnerTokenService.issueToken(PartnerChannel.INTERNAL_SYSTEM, request));
+        return toResponse(partnerTokenService.issueToken(request));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -16,19 +16,29 @@ public class PartnerClientService {
     public String register(RegisterPartnerClientRequest request) {
         String clientId = requireText(request.clientId(), "clientId is required");
         String clientSecret = requireText(request.clientSecret(), "clientSecret is required");
-        PartnerChannel channel = request.channel() == null ? PartnerChannel.EXTERNAL_USER : request.channel();
-        String systemName = channel == PartnerChannel.INTERNAL_SYSTEM
-            ? requireText(request.systemName(), "systemName is required for internal clients")
-            : normalizeOptional(request.systemName());
+        PartnerChannel channel = request.channel();
+        if (channel == null) {
+            throw new IllegalArgumentException("channel is required");
+        }
+
+        String systemName = requireText(request.systemName(), "systemName is required");
         List<String> scopes = normalizeScopes(request.scopes());
         partnerClientStore.save(new PartnerClient(clientId, clientSecret, request.active(), channel, systemName, scopes));
         return clientId;
     }
 
     public PartnerClient findActiveClient(PartnerChannel channel, String clientId) {
+        PartnerClient client = findActiveClient(clientId);
+        if (client == null || client.channel() != channel) {
+            return null;
+        }
+        return client;
+    }
+
+    public PartnerClient findActiveClient(String clientId) {
         String normalizedClientId = requireText(clientId, "clientId is required");
         PartnerClient client = partnerClientStore.findByClientId(normalizedClientId);
-        if (client == null || !client.active() || client.channel() != channel) {
+        if (client == null || !client.active()) {
             return null;
         }
         return client;
@@ -37,13 +47,6 @@ public class PartnerClientService {
     private String requireText(String value, String message) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(message);
-        }
-        return value.trim();
-    }
-
-    private String normalizeOptional(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
         }
         return value.trim();
     }
