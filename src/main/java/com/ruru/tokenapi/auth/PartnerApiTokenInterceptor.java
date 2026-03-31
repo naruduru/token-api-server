@@ -1,6 +1,5 @@
 package com.ruru.tokenapi.auth;
 
-import com.ruru.tokenapi.partner.PartnerChannel;
 import com.ruru.tokenapi.partner.PartnerTokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,10 +27,7 @@ public class PartnerApiTokenInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        PartnerChannel expectedChannel = request.getRequestURI().startsWith("/api/internal/")
-            ? PartnerChannel.INTERNAL_SYSTEM
-            : PartnerChannel.EXTERNAL_USER;
-        AuthenticatedPartnerToken authenticatedToken = partnerTokenService.authenticate(expectedChannel, token);
+        AuthenticatedPartnerToken authenticatedToken = partnerTokenService.authenticate(token);
         if (authenticatedToken == null) {
             writeUnauthorized(response, "Invalid or expired token");
             return false;

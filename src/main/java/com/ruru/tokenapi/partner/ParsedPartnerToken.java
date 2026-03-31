@@ -7,8 +7,6 @@ public record ParsedPartnerToken(
     String tokenId,
     String clientId,
     String issuer,
-    PartnerChannel channel,
-    String userId,
     String systemName,
     List<String> scopes,
     Instant expiresAt
