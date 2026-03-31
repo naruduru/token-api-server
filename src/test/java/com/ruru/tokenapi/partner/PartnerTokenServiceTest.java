@@ -8,7 +8,10 @@ import com.ruru.tokenapi.client.RegisterPartnerClientRequest;
 import com.ruru.tokenapi.config.TokenApiProperties;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,15 +22,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PartnerTokenServiceTest {
     @Test
-    void issuesAndAuthenticatesExternalUserToken() {
+    void issuesAndAuthenticatesDmzBackendToken() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
-            "partner-a",
-            "secret123",
+            "dmz-backend-client",
+            "dmz-backend-secret",
             true,
-            PartnerChannel.EXTERNAL_USER,
-            null,
-            java.util.List.of("member.read", "order.read")
+            PartnerChannel.DMZ_BACKEND,
+            "dmz-backend",
+            java.util.List.of("order.read", "order.write")
         ));
 
         InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
@@ -36,88 +39,43 @@ class PartnerTokenServiceTest {
         PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
 
         IssuedPartnerToken issuedToken = tokenService.issueToken(
-            PartnerChannel.EXTERNAL_USER,
-            new IssuePartnerTokenRequest("partner-a", "secret123", "user-100")
+            new IssuePartnerTokenRequest("dmz-backend-client", "dmz-backend-secret", PartnerChannel.DMZ_BACKEND)
         );
 
-        AuthenticatedPartnerToken authenticatedToken = tokenService.authenticate(
-            PartnerChannel.EXTERNAL_USER,
-            issuedToken.accessToken()
-        );
+        AuthenticatedPartnerToken authenticatedToken = tokenService.authenticate(issuedToken.accessToken());
         assertNotNull(authenticatedToken);
-        assertEquals("partner-a", authenticatedToken.clientId());
-        assertEquals("user-100", authenticatedToken.userId());
-        assertEquals(PartnerChannel.EXTERNAL_USER, authenticatedToken.channel());
+        assertEquals("dmz-backend-client", authenticatedToken.clientId());
+        assertEquals(PartnerChannel.DMZ_BACKEND, authenticatedToken.channel());
+        assertEquals("dmz-backend", authenticatedToken.systemName());
     }
 
     @Test
-    void issuesAndAuthenticatesInternalSystemToken() {
+    void rejectsMissingChannelOnRegister() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
-        clientService.register(new RegisterPartnerClientRequest(
-            "intranet-batch",
-            "internal-secret",
-            true,
-            PartnerChannel.INTERNAL_SYSTEM,
-            "order-sync-server",
-            java.util.List.of("batch.read", "batch.write")
-        ));
-
-        InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
-        TokenApiProperties properties = properties();
-        PartnerJwtService jwtService = new PartnerJwtService(properties);
-        PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
-
-        IssuedPartnerToken issuedToken = tokenService.issueToken(
-            PartnerChannel.INTERNAL_SYSTEM,
-            new IssuePartnerTokenRequest("intranet-batch", "internal-secret", null)
-        );
-
-        AuthenticatedPartnerToken authenticatedToken = tokenService.authenticate(
-            PartnerChannel.INTERNAL_SYSTEM,
-            issuedToken.accessToken()
-        );
-        assertNotNull(authenticatedToken);
-        assertEquals("intranet-batch", authenticatedToken.clientId());
-        assertEquals("order-sync-server", authenticatedToken.systemName());
-        assertEquals(PartnerChannel.INTERNAL_SYSTEM, authenticatedToken.channel());
-    }
-
-    @Test
-    void rejectsExternalTokenWithoutUserId() {
-        PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
-        clientService.register(new RegisterPartnerClientRequest(
-            "partner-a",
-            "secret123",
-            true,
-            PartnerChannel.EXTERNAL_USER,
-            null,
-            java.util.List.of("member.read")
-        ));
-
-        InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
-        TokenApiProperties properties = properties();
-        PartnerJwtService jwtService = new PartnerJwtService(properties);
-        PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
 
         IllegalArgumentException exception = assertThrows(
             IllegalArgumentException.class,
-            () -> tokenService.issueToken(
-                PartnerChannel.EXTERNAL_USER,
-                new IssuePartnerTokenRequest("partner-a", "secret123", null)
-            )
+            () -> clientService.register(new RegisterPartnerClientRequest(
+                "system-a-client",
+                "system-a-secret",
+                true,
+                null,
+                "internal-a",
+                java.util.List.of("batch.read")
+            ))
         );
-        assertEquals("userId is required for external user tokens", exception.getMessage());
+        assertEquals("channel is required", exception.getMessage());
     }
 
     @Test
-    void rejectsInternalTokenWithUserId() {
+    void rejectsMissingChannelOnIssueToken() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
-            "intranet-batch",
-            "internal-secret",
+            "system-a-client",
+            "system-a-secret",
             true,
-            PartnerChannel.INTERNAL_SYSTEM,
-            "order-sync-server",
+            PartnerChannel.A,
+            "internal-a",
             java.util.List.of("batch.read")
         ));
 
@@ -128,24 +86,21 @@ class PartnerTokenServiceTest {
 
         IllegalArgumentException exception = assertThrows(
             IllegalArgumentException.class,
-            () -> tokenService.issueToken(
-                PartnerChannel.INTERNAL_SYSTEM,
-                new IssuePartnerTokenRequest("intranet-batch", "internal-secret", "user-100")
-            )
+            () -> tokenService.issueToken(new IssuePartnerTokenRequest("system-a-client", "system-a-secret", null))
         );
-        assertEquals("userId is not allowed for internal system tokens", exception.getMessage());
+        assertEquals("channel is required", exception.getMessage());
     }
 
     @Test
-    void rejectsChannelMismatch() {
+    void rejectsChannelMismatchCredentials() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
-            "partner-a",
-            "secret123",
+            "system-a-client",
+            "system-a-secret",
             true,
-            PartnerChannel.EXTERNAL_USER,
-            null,
-            java.util.List.of("member.read")
+            PartnerChannel.A,
+            "internal-a",
+            java.util.List.of("batch.read")
         ));
 
         InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
@@ -153,12 +108,31 @@ class PartnerTokenServiceTest {
         PartnerJwtService jwtService = new PartnerJwtService(properties);
         PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
 
-        IssuedPartnerToken issuedToken = tokenService.issueToken(
-            PartnerChannel.EXTERNAL_USER,
-            new IssuePartnerTokenRequest("partner-a", "secret123", "user-100")
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> tokenService.issueToken(new IssuePartnerTokenRequest("system-a-client", "system-a-secret", PartnerChannel.B))
         );
+        assertEquals("Invalid client credentials", exception.getMessage());
+    }
 
-        assertNull(tokenService.authenticate(PartnerChannel.INTERNAL_SYSTEM, issuedToken.accessToken()));
+    @Test
+    void rejectsInvalidTokenType() {
+        InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
+        TokenApiProperties properties = properties();
+        PartnerJwtService jwtService = new PartnerJwtService(properties);
+        String nonSupportedTypeToken = io.jsonwebtoken.Jwts.builder()
+            .setSubject("system-a-client")
+            .setIssuer("token-api-server")
+            .setId("token-1")
+            .setExpiration(Date.from(Instant.now().plusSeconds(60)))
+            .claim("type", "UNKNOWN")
+            .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(properties.getJwtSecret().getBytes(StandardCharsets.UTF_8)))
+            .compact();
+
+        PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
+        PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
+
+        assertNull(tokenService.authenticate(nonSupportedTypeToken));
     }
 
     private TokenApiProperties properties() {

@@ -1,6 +1,9 @@
 package com.ruru.tokenapi.partner;
 
 public enum PartnerChannel {
-    EXTERNAL_USER,
-    INTERNAL_SYSTEM
+    DMZ_FRONT,
+    DMZ_BACKEND,
+    A,
+    B,
+    C
 }

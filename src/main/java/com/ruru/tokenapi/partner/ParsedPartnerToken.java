@@ -6,9 +6,8 @@ import java.util.List;
 public record ParsedPartnerToken(
     String tokenId,
     String clientId,
-    String issuer,
     PartnerChannel channel,
-    String userId,
+    String issuer,
     String systemName,
     List<String> scopes,
     Instant expiresAt

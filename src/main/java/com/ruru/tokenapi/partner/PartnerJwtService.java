@@ -23,10 +23,9 @@ public class PartnerJwtService {
         this.secretKey = Keys.hmacShaKeyFor(properties.getJwtSecret().getBytes(StandardCharsets.UTF_8));
     }
 
-    public String issueToken(PartnerChannel channel,
-                             String clientId,
+    public String issueToken(String clientId,
                              String tokenId,
-                             String userId,
+                             PartnerChannel channel,
                              String systemName,
                              List<String> scopes,
                              Instant issuedAt,
@@ -38,7 +37,6 @@ public class PartnerJwtService {
             .setExpiration(Date.from(expiresAt))
             .setId(tokenId)
             .claim("type", channel.name())
-            .claim("userId", userId)
             .claim("systemName", systemName)
             .claim("scope", scopes)
             .signWith(secretKey)
@@ -56,18 +54,31 @@ public class PartnerJwtService {
             List<String> scopes = rawScopes instanceof List<?> list
                 ? list.stream().map(String::valueOf).toList()
                 : List.of();
-            String rawType = payload.get("type", String.class);
+            PartnerChannel channel = parseChannel(payload.get("type", String.class));
+            if (channel == null) {
+                return null;
+            }
             return new ParsedPartnerToken(
                 payload.getId(),
                 payload.getSubject(),
+                channel,
                 payload.getIssuer(),
-                rawType == null ? null : PartnerChannel.valueOf(rawType),
-                payload.get("userId", String.class),
                 payload.get("systemName", String.class),
                 scopes,
                 payload.getExpiration().toInstant()
             );
         } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private PartnerChannel parseChannel(String rawChannel) {
+        if (rawChannel == null || rawChannel.isBlank()) {
+            return null;
+        }
+        try {
+            return PartnerChannel.valueOf(rawChannel);
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }
