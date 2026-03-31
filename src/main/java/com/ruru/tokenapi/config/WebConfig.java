@@ -16,8 +16,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(partnerApiTokenInterceptor)
-            .addPathPatterns("/api/external/**")
             .addPathPatterns("/api/internal/**")
-            .excludePathPatterns("/api/external/token", "/api/internal/token");
+            .excludePathPatterns("/api/internal/token");
     }
 }
