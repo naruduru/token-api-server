@@ -1,15 +1,13 @@
 package com.ruru.tokenapi.partner;
 
 import java.time.Instant;
-import java.util.List;
 
-public record ParsedPartnerToken(
+public record RevokedPartnerToken(
     String tokenId,
     String clientId,
-    String issuer,
     SystemCode systemCode,
     CallSource callSource,
-    List<String> scopes,
+    Instant revokedAt,
     Instant expiresAt
 ) {
 }

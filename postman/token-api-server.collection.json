@@ -25,7 +25,7 @@
       "response": []
     },
     {
-      "name": "Register Internal System Client",
+      "name": "Register Geumsangmall Front Client",
       "request": {
         "method": "POST",
         "header": [
@@ -40,7 +40,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"clientId\": \"intranet-batch\",\n  \"clientSecret\": \"internal-secret\",\n  \"active\": true,\n  \"channel\": \"INTERNAL_SYSTEM\",\n  \"systemName\": \"order-sync-server\",\n  \"scopes\": [\"batch.read\", \"batch.write\"]\n}"
+          "raw": "{\n  \"clientId\": \"geumsangmall-front\",\n  \"clientSecret\": \"front-secret\",\n  \"systemCode\": \"GEUMSANGMALL\",\n  \"callSource\": \"DMZ_FRONT\",\n  \"active\": true,\n  \"scopes\": [\"api.read\"],\n  \"description\": \"금상몰 프론트 호출용\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/api/admin/partner-clients",
@@ -57,7 +57,7 @@
       "response": []
     },
     {
-      "name": "Issue Internal System Token",
+      "name": "Issue Partner Token",
       "event": [
         {
           "listen": "test",
@@ -70,7 +70,7 @@
               "",
               "var json = pm.response.json();",
               "if (json.accessToken) {",
-              "  pm.environment.set('internalAccessToken', json.accessToken);",
+              "  pm.environment.set('partnerAccessToken', json.accessToken);",
               "}"
             ]
           }
@@ -86,7 +86,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"clientId\": \"intranet-batch\",\n  \"clientSecret\": \"internal-secret\"\n}"
+          "raw": "{\n  \"clientId\": \"geumsangmall-front\",\n  \"clientSecret\": \"front-secret\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/api/internal/token",
@@ -103,13 +103,130 @@
       "response": []
     },
     {
+      "name": "Exchange Geumsangmall Front Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mallUserId\": \"mall-user-1\",\n  \"mallSessionId\": \"session-1\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/external/geumsangmall/token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "external",
+            "geumsangmall",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Partner Clients",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Admin-Secret",
+            "value": "{{adminSecret}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/partner-clients",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "partner-clients"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Revoke Partner Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Admin-Secret",
+            "value": "{{adminSecret}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"accessToken\": \"{{partnerAccessToken}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/partner-tokens/revoke",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "partner-tokens",
+            "revoke"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Revocation History",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Admin-Secret",
+            "value": "{{adminSecret}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/partner-tokens/revocations?limit=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "partner-tokens",
+            "revocations"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Internal Ping",
       "request": {
         "method": "GET",
         "header": [
           {
             "key": "Authorization",
-            "value": "Bearer {{internalAccessToken}}"
+            "value": "Bearer {{partnerAccessToken}}"
           }
         ],
         "url": {

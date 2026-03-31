@@ -36,7 +36,9 @@ public class PartnerTokenController {
         return new IssuePartnerTokenResponse(
             issuedToken.accessToken(),
             "Bearer",
-            issuedToken.expiresIn()
+            issuedToken.expiresIn(),
+            issuedToken.systemCode(),
+            issuedToken.callSource()
         );
     }
 }

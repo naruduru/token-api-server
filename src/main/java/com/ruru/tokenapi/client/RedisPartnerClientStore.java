@@ -1,6 +1,7 @@
 package com.ruru.tokenapi.client;
 
-import com.ruru.tokenapi.partner.PartnerChannel;
+import com.ruru.tokenapi.partner.CallSource;
+import com.ruru.tokenapi.partner.SystemCode;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -10,6 +11,7 @@ import java.util.List;
 @Repository
 public class RedisPartnerClientStore implements PartnerClientStore {
     private static final String KEY_PREFIX = "partner:client:";
+    private static final String IDS_KEY = "partner:client:ids";
 
     private final StringRedisTemplate redisTemplate;
 
@@ -21,14 +23,17 @@ public class RedisPartnerClientStore implements PartnerClientStore {
     public void save(PartnerClient client) {
         String value = client.clientSecret()
             + "|"
+            + client.systemCode().name()
+            + "|"
+            + client.callSource().name()
+            + "|"
             + (client.active() ? "Y" : "N")
             + "|"
-            + client.channel().name()
+            + String.join(",", client.scopes())
             + "|"
-            + nullToEmpty(client.systemName())
-            + "|"
-            + String.join(",", client.scopes());
+            + nullToEmpty(client.description());
         redisTemplate.opsForValue().set(key(client.clientId()), value);
+        redisTemplate.opsForSet().add(IDS_KEY, client.clientId());
     }
 
     @Override
@@ -39,7 +44,7 @@ public class RedisPartnerClientStore implements PartnerClientStore {
         }
 
         String[] parts = value.split("\\|", -1);
-        if (parts.length < 5) {
+        if (parts.length < 6) {
             throw new IllegalStateException("Invalid partner client payload for " + clientId);
         }
 
@@ -52,11 +57,25 @@ public class RedisPartnerClientStore implements PartnerClientStore {
         return new PartnerClient(
             clientId,
             parts[0],
-            "Y".equalsIgnoreCase(parts[1]),
-            PartnerChannel.valueOf(parts[2]),
-            parts[3].isBlank() ? null : parts[3],
-            scopes
+            SystemCode.valueOf(parts[1]),
+            CallSource.valueOf(parts[2]),
+            "Y".equalsIgnoreCase(parts[3]),
+            scopes,
+            parts[5].isBlank() ? null : parts[5]
         );
+    }
+
+    @Override
+    public List<PartnerClient> findAll() {
+        var ids = redisTemplate.opsForSet().members(IDS_KEY);
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return ids.stream()
+            .map(this::findByClientId)
+            .filter(java.util.Objects::nonNull)
+            .sorted(java.util.Comparator.comparing(PartnerClient::clientId))
+            .toList();
     }
 
     private String key(String clientId) {

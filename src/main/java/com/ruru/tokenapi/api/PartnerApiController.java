@@ -26,9 +26,9 @@ public class PartnerApiController {
         AuthenticatedPartnerToken auth = current(request);
         return Map.of(
             "message", "success",
-            "channel", "internal",
             "clientId", auth.clientId(),
-            "systemName", auth.systemName(),
+            "systemCode", auth.systemCode(),
+            "callSource", auth.callSource(),
             "scopes", auth.scopes(),
             "tokenId", auth.tokenId()
         );

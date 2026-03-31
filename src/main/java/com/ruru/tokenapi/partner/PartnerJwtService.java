@@ -25,7 +25,8 @@ public class PartnerJwtService {
 
     public String issueToken(String clientId,
                              String tokenId,
-                             String systemName,
+                             SystemCode systemCode,
+                             CallSource callSource,
                              List<String> scopes,
                              Instant issuedAt,
                              Instant expiresAt) {
@@ -35,8 +36,8 @@ public class PartnerJwtService {
             .setIssuedAt(Date.from(issuedAt))
             .setExpiration(Date.from(expiresAt))
             .setId(tokenId)
-            .claim("type", PartnerChannel.INTERNAL_SYSTEM.name())
-            .claim("systemName", systemName)
+            .claim("systemCode", systemCode.name())
+            .claim("callSource", callSource.name())
             .claim("scope", scopes)
             .signWith(secretKey)
             .compact();
@@ -53,19 +54,21 @@ public class PartnerJwtService {
             List<String> scopes = rawScopes instanceof List<?> list
                 ? list.stream().map(String::valueOf).toList()
                 : List.of();
-            String tokenType = payload.get("type", String.class);
-            if (!PartnerChannel.INTERNAL_SYSTEM.name().equals(tokenType)) {
+            String systemCode = payload.get("systemCode", String.class);
+            String callSource = payload.get("callSource", String.class);
+            if (systemCode == null || callSource == null) {
                 return null;
             }
             return new ParsedPartnerToken(
                 payload.getId(),
                 payload.getSubject(),
                 payload.getIssuer(),
-                payload.get("systemName", String.class),
+                SystemCode.valueOf(systemCode),
+                CallSource.valueOf(callSource),
                 scopes,
                 payload.getExpiration().toInstant()
             );
-        } catch (JwtException | IllegalArgumentException e) {
+        } catch (JwtException | IllegalArgumentException | NullPointerException e) {
             return null;
         }
     }

@@ -1,15 +1,12 @@
 package com.ruru.tokenapi.partner;
 
 import java.time.Instant;
-import java.util.List;
 
-public record ParsedPartnerToken(
-    String tokenId,
+public record ActivePartnerToken(
     String clientId,
-    String issuer,
     SystemCode systemCode,
     CallSource callSource,
-    List<String> scopes,
+    Instant issuedAt,
     Instant expiresAt
 ) {
 }

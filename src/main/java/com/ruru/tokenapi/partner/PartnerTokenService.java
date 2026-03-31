@@ -10,6 +10,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 
 @Service
 public class PartnerTokenService {
@@ -33,26 +34,24 @@ public class PartnerTokenService {
         String clientId = requireText(request.clientId(), "clientId is required");
         String clientSecret = requireText(request.clientSecret(), "clientSecret is required");
 
-        PartnerClient client = partnerClientService.findActiveClient(PartnerChannel.INTERNAL_SYSTEM, clientId);
+        PartnerClient client = partnerClientService.findActiveClient(clientId);
         if (client == null || !client.clientSecret().equals(clientSecret)) {
             throw new IllegalArgumentException("Invalid client credentials");
         }
 
-        long expiresIn = properties.getAccessTokenTtlSeconds();
-        Instant issuedAt = Instant.now();
-        Instant expiresAt = issuedAt.plusSeconds(expiresIn);
-        String tokenId = randomId(18);
-        String accessToken = partnerJwtService.issueToken(
-            client.clientId(),
-            tokenId,
-            client.systemName(),
-            client.scopes(),
-            issuedAt,
-            expiresAt
-        );
-        partnerTokenStore.saveActiveToken(PartnerChannel.INTERNAL_SYSTEM, tokenId, client.clientId(), Duration.ofSeconds(expiresIn));
+        return issueTokenForClient(client, properties.getAccessTokenTtlSeconds());
+    }
 
-        return new IssuedPartnerToken(accessToken, expiresIn);
+    public IssuedPartnerToken issueGeumsangmallExchangeToken() {
+        var geumsangmall = properties.getGeumsangmall();
+        if (!geumsangmall.isExchangeEnabled()) {
+            throw new IllegalStateException("Geumsangmall token exchange is disabled");
+        }
+        PartnerClient client = partnerClientService.findActiveClient(geumsangmall.getExchangeClientId());
+        if (client == null || client.systemCode() != SystemCode.GEUMSANGMALL || client.callSource() != CallSource.DMZ_FRONT) {
+            throw new IllegalStateException("Geumsangmall exchange client is not configured correctly");
+        }
+        return issueTokenForClient(client, geumsangmall.getExchangeTokenTtlSeconds());
     }
 
     public AuthenticatedPartnerToken authenticate(String accessToken) {
@@ -73,24 +72,85 @@ public class PartnerTokenService {
         if (parsedToken.tokenId() == null || parsedToken.tokenId().isBlank()) {
             return null;
         }
-        if (parsedToken.systemName() == null || parsedToken.systemName().isBlank()) {
+        if (parsedToken.systemCode() == null || parsedToken.callSource() == null) {
             return null;
         }
 
-        String activeClientId = partnerTokenStore.findActiveTokenClientId(PartnerChannel.INTERNAL_SYSTEM, parsedToken.tokenId());
-        if (activeClientId == null || !activeClientId.equals(parsedToken.clientId())) {
+        ActivePartnerToken activeToken = partnerTokenStore.findActiveToken(parsedToken.tokenId());
+        if (activeToken == null) {
             return null;
         }
-        if (partnerTokenStore.isRevoked(PartnerChannel.INTERNAL_SYSTEM, parsedToken.tokenId())) {
+        if (!activeToken.clientId().equals(parsedToken.clientId())
+            || activeToken.systemCode() != parsedToken.systemCode()
+            || activeToken.callSource() != parsedToken.callSource()) {
+            return null;
+        }
+        if (partnerTokenStore.isRevoked(parsedToken.tokenId())) {
             return null;
         }
 
         return new AuthenticatedPartnerToken(
             parsedToken.tokenId(),
             parsedToken.clientId(),
-            parsedToken.systemName(),
+            parsedToken.systemCode(),
+            parsedToken.callSource(),
             parsedToken.scopes()
         );
+    }
+
+    public RevokePartnerTokenResponse revoke(String accessToken) {
+        String normalizedToken = requireText(accessToken, "accessToken is required");
+        ParsedPartnerToken parsedToken = partnerJwtService.parse(normalizedToken);
+        if (parsedToken == null
+            || parsedToken.tokenId() == null
+            || parsedToken.tokenId().isBlank()
+            || parsedToken.expiresAt() == null
+            || !properties.getIssuer().equals(parsedToken.issuer())) {
+            throw new IllegalArgumentException("Invalid token");
+        }
+
+        ActivePartnerToken activeToken = partnerTokenStore.findActiveToken(parsedToken.tokenId());
+        if (activeToken == null) {
+            throw new IllegalArgumentException("Token is not active");
+        }
+        if (!activeToken.clientId().equals(parsedToken.clientId())
+            || activeToken.systemCode() != parsedToken.systemCode()
+            || activeToken.callSource() != parsedToken.callSource()) {
+            throw new IllegalArgumentException("Token is not active");
+        }
+
+        Duration ttl = Duration.between(Instant.now(), parsedToken.expiresAt());
+        if (ttl.isZero() || ttl.isNegative()) {
+            throw new IllegalArgumentException("Token is already expired");
+        }
+
+        Instant revokedAt = Instant.now();
+        partnerTokenStore.revoke(
+            new RevokedPartnerToken(
+                parsedToken.tokenId(),
+                parsedToken.clientId(),
+                parsedToken.systemCode(),
+                parsedToken.callSource(),
+                revokedAt,
+                parsedToken.expiresAt()
+            ),
+            ttl
+        );
+        return new RevokePartnerTokenResponse(
+            "token revoked",
+            parsedToken.tokenId(),
+            parsedToken.clientId(),
+            parsedToken.systemCode(),
+            parsedToken.callSource(),
+            revokedAt
+        );
+    }
+
+    public List<RevokedPartnerTokenResponse> getRevocationHistory(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 100));
+        return partnerTokenStore.findRevokedTokens(safeLimit).stream()
+            .map(RevokedPartnerTokenResponse::from)
+            .toList();
     }
 
     private String requireText(String value, String message) {
@@ -98,6 +158,34 @@ public class PartnerTokenService {
             throw new IllegalArgumentException(message);
         }
         return value.trim();
+    }
+
+    private IssuedPartnerToken issueTokenForClient(PartnerClient client, long expiresIn) {
+        Instant issuedAt = Instant.now();
+        Instant expiresAt = issuedAt.plusSeconds(expiresIn);
+        String tokenId = randomId(18);
+        String accessToken = partnerJwtService.issueToken(
+            client.clientId(),
+            tokenId,
+            client.systemCode(),
+            client.callSource(),
+            client.scopes(),
+            issuedAt,
+            expiresAt
+        );
+        partnerTokenStore.saveActiveToken(
+            tokenId,
+            new ActivePartnerToken(
+                client.clientId(),
+                client.systemCode(),
+                client.callSource(),
+                issuedAt,
+                expiresAt
+            ),
+            Duration.ofSeconds(expiresIn)
+        );
+
+        return new IssuedPartnerToken(accessToken, expiresIn, client.systemCode(), client.callSource());
     }
 
     private String randomId(int bytes) {
