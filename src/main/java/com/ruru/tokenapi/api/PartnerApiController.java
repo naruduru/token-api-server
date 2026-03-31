@@ -21,25 +21,12 @@ public class PartnerApiController {
         );
     }
 
-    @GetMapping("/external/ping")
-    public Map<String, Object> externalPing(HttpServletRequest request) {
-        AuthenticatedPartnerToken auth = current(request);
-        return Map.of(
-            "message", "success",
-            "channel", "external",
-            "clientId", auth.clientId(),
-            "userId", auth.userId(),
-            "scopes", auth.scopes(),
-            "tokenId", auth.tokenId()
-        );
-    }
-
     @GetMapping("/internal/ping")
     public Map<String, Object> internalPing(HttpServletRequest request) {
         AuthenticatedPartnerToken auth = current(request);
         return Map.of(
             "message", "success",
-            "channel", "internal",
+            "channel", auth.channel(),
             "clientId", auth.clientId(),
             "systemName", auth.systemName(),
             "scopes", auth.scopes(),

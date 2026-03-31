@@ -29,20 +29,17 @@ public class PartnerTokenService {
         this.properties = properties;
     }
 
-    public IssuedPartnerToken issueToken(PartnerChannel channel, IssuePartnerTokenRequest request) {
+    public IssuedPartnerToken issueToken(IssuePartnerTokenRequest request) {
         String clientId = requireText(request.clientId(), "clientId is required");
         String clientSecret = requireText(request.clientSecret(), "clientSecret is required");
-
-        PartnerClient client = partnerClientService.findActiveClient(channel, clientId);
-        if (client == null || !client.clientSecret().equals(clientSecret)) {
-            throw new IllegalArgumentException("Invalid client credentials");
+        PartnerChannel requestedChannel = request.channel();
+        if (requestedChannel == null) {
+            throw new IllegalArgumentException("channel is required");
         }
 
-        String userId = channel == PartnerChannel.EXTERNAL_USER
-            ? requireText(request.userId(), "userId is required for external user tokens")
-            : null;
-        if (channel == PartnerChannel.INTERNAL_SYSTEM && request.userId() != null && !request.userId().isBlank()) {
-            throw new IllegalArgumentException("userId is not allowed for internal system tokens");
+        PartnerClient client = partnerClientService.findActiveClient(requestedChannel, clientId);
+        if (client == null || !client.clientSecret().equals(clientSecret)) {
+            throw new IllegalArgumentException("Invalid client credentials");
         }
 
         long expiresIn = properties.getAccessTokenTtlSeconds();
@@ -50,27 +47,26 @@ public class PartnerTokenService {
         Instant expiresAt = issuedAt.plusSeconds(expiresIn);
         String tokenId = randomId(18);
         String accessToken = partnerJwtService.issueToken(
-            channel,
             client.clientId(),
             tokenId,
-            userId,
+            client.channel(),
             client.systemName(),
             client.scopes(),
             issuedAt,
             expiresAt
         );
-        partnerTokenStore.saveActiveToken(channel, tokenId, client.clientId(), Duration.ofSeconds(expiresIn));
+        partnerTokenStore.saveActiveToken(client.channel(), tokenId, client.clientId(), Duration.ofSeconds(expiresIn));
 
         return new IssuedPartnerToken(accessToken, expiresIn);
     }
 
-    public AuthenticatedPartnerToken authenticate(PartnerChannel expectedChannel, String accessToken) {
+    public AuthenticatedPartnerToken authenticate(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             return null;
         }
 
         ParsedPartnerToken parsedToken = partnerJwtService.parse(accessToken);
-        if (parsedToken == null || parsedToken.channel() != expectedChannel) {
+        if (parsedToken == null) {
             return null;
         }
         if (!properties.getIssuer().equals(parsedToken.issuer())) {
@@ -82,20 +78,20 @@ public class PartnerTokenService {
         if (parsedToken.tokenId() == null || parsedToken.tokenId().isBlank()) {
             return null;
         }
-        if (expectedChannel == PartnerChannel.EXTERNAL_USER
-            && (parsedToken.userId() == null || parsedToken.userId().isBlank())) {
-            return null;
-        }
-        if (expectedChannel == PartnerChannel.INTERNAL_SYSTEM
-            && (parsedToken.systemName() == null || parsedToken.systemName().isBlank())) {
+        if (parsedToken.systemName() == null || parsedToken.systemName().isBlank()) {
             return null;
         }
 
-        String activeClientId = partnerTokenStore.findActiveTokenClientId(expectedChannel, parsedToken.tokenId());
+        PartnerClient client = partnerClientService.findActiveClient(parsedToken.channel(), parsedToken.clientId());
+        if (client == null) {
+            return null;
+        }
+
+        String activeClientId = partnerTokenStore.findActiveTokenClientId(parsedToken.channel(), parsedToken.tokenId());
         if (activeClientId == null || !activeClientId.equals(parsedToken.clientId())) {
             return null;
         }
-        if (partnerTokenStore.isRevoked(expectedChannel, parsedToken.tokenId())) {
+        if (partnerTokenStore.isRevoked(parsedToken.channel(), parsedToken.tokenId())) {
             return null;
         }
 
@@ -103,7 +99,6 @@ public class PartnerTokenService {
             parsedToken.tokenId(),
             parsedToken.clientId(),
             parsedToken.channel(),
-            parsedToken.userId(),
             parsedToken.systemName(),
             parsedToken.scopes()
         );
