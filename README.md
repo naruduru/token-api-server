@@ -252,6 +252,7 @@ curl -s http://127.0.0.1:8090/api/public/health
 
 - 허용 조합은 설계 문서 `TOKEN_CLIENT_DESIGN.md` 기준으로 관리합니다.
 - 금상몰 프론트 전용 교환 플로우는 `GEUMSANGMALL_TOKEN_EXCHANGE.md`를 참고합니다.
+- Bearer 토큰을 서버에서 추출하고 사용하는 샘플은 `AUTHORIZATION_HEADER_SAMPLE.md`를 참고합니다.
 - 기본 운영 초기 등록 데이터는 `application.properties`의 `token.api.initial-clients`로 로드됩니다.
 - 운영 환경에서는 각 `clientSecret`을 환경변수로 주입하는 전제를 둡니다.
 - 운영 환경에서는 `token.api.admin-secret`, `token.api.jwt-secret`를 반드시 안전한 값으로 바꿔야 합니다.

@@ -132,6 +132,8 @@ curl -s -X POST http://127.0.0.1:8090/api/internal/token/refresh \
   }'
 ```
 
+Bearer 토큰을 서버 코드에서 추출하고 request attribute로 넘기는 샘플은 `AUTHORIZATION_HEADER_SAMPLE.md`를 참고한다.
+
 ## 테스트
 
 `src/test/java/com/ruru/tokenapi/partner/PartnerTokenServiceTest.java`에서 내부 토큰 발급/검증 및 예외 케이스를 확인합니다.

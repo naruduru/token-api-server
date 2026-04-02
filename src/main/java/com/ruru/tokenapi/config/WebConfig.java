@@ -17,6 +17,6 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(partnerApiTokenInterceptor)
             .addPathPatterns("/api/internal/**")
-            .excludePathPatterns("/api/internal/token");
+            .excludePathPatterns("/api/internal/token", "/api/internal/token/refresh");
     }
 }
