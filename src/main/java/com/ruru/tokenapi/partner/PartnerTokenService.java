@@ -39,7 +39,7 @@ public class PartnerTokenService {
             throw new IllegalArgumentException("Invalid client credentials");
         }
 
-        return issueTokenForClient(client, properties.getAccessTokenTtlSeconds());
+        return issueTokenForClient(client, properties.getAccessTokenTtlSeconds(), properties.getRefreshTokenTtlSeconds());
     }
 
     public IssuedPartnerToken issueGeumsangmallExchangeToken() {
@@ -51,7 +51,31 @@ public class PartnerTokenService {
         if (client == null || client.systemCode() != SystemCode.GEUMSANGMALL || client.callSource() != CallSource.DMZ_FRONT) {
             throw new IllegalStateException("Geumsangmall exchange client is not configured correctly");
         }
-        return issueTokenForClient(client, geumsangmall.getExchangeTokenTtlSeconds());
+        return issueTokenForClient(client, geumsangmall.getExchangeTokenTtlSeconds(), properties.getRefreshTokenTtlSeconds());
+    }
+
+    public IssuedPartnerToken refreshToken(RefreshPartnerTokenRequest request) {
+        String clientId = requireText(request.clientId(), "clientId is required");
+        String refreshToken = requireText(request.refreshToken(), "refreshToken is required");
+
+        ActiveRefreshToken activeRefreshToken = partnerTokenStore.findRefreshToken(refreshToken);
+        if (activeRefreshToken == null || activeRefreshToken.expiresAt() == null || activeRefreshToken.expiresAt().isBefore(Instant.now())) {
+            throw new IllegalArgumentException("Invalid refresh token");
+        }
+        if (!activeRefreshToken.clientId().equals(clientId)) {
+            throw new IllegalArgumentException("Refresh token does not match clientId");
+        }
+
+        PartnerClient client = partnerClientService.findActiveClient(clientId);
+        if (client == null) {
+            throw new IllegalArgumentException("Client is not active");
+        }
+        if (client.systemCode() != activeRefreshToken.systemCode() || client.callSource() != activeRefreshToken.callSource()) {
+            throw new IllegalArgumentException("Refresh token does not match client");
+        }
+
+        partnerTokenStore.deleteRefreshToken(refreshToken);
+        return issueTokenForClient(client, properties.getAccessTokenTtlSeconds(), properties.getRefreshTokenTtlSeconds());
     }
 
     public AuthenticatedPartnerToken authenticate(String accessToken) {
@@ -160,10 +184,12 @@ public class PartnerTokenService {
         return value.trim();
     }
 
-    private IssuedPartnerToken issueTokenForClient(PartnerClient client, long expiresIn) {
+    private IssuedPartnerToken issueTokenForClient(PartnerClient client, long expiresIn, long refreshExpiresIn) {
         Instant issuedAt = Instant.now();
         Instant expiresAt = issuedAt.plusSeconds(expiresIn);
+        Instant refreshExpiresAt = issuedAt.plusSeconds(refreshExpiresIn);
         String tokenId = randomId(18);
+        String refreshToken = randomId(32);
         String accessToken = partnerJwtService.issueToken(
             client.clientId(),
             tokenId,
@@ -184,8 +210,28 @@ public class PartnerTokenService {
             ),
             Duration.ofSeconds(expiresIn)
         );
+        partnerTokenStore.saveRefreshToken(
+            refreshToken,
+            new ActiveRefreshToken(
+                refreshToken,
+                tokenId,
+                client.clientId(),
+                client.systemCode(),
+                client.callSource(),
+                issuedAt,
+                refreshExpiresAt
+            ),
+            Duration.ofSeconds(refreshExpiresIn)
+        );
 
-        return new IssuedPartnerToken(accessToken, expiresIn, client.systemCode(), client.callSource());
+        return new IssuedPartnerToken(
+            accessToken,
+            refreshToken,
+            expiresIn,
+            refreshExpiresIn,
+            client.systemCode(),
+            client.callSource()
+        );
     }
 
     private String randomId(int bytes) {

@@ -42,7 +42,14 @@ class GeumsangmallTokenExchangeControllerTest {
     @Test
     void exchangesToken() throws Exception {
         when(geumsangmallTokenExchangeService.exchange(any(), any())).thenReturn(
-            new IssuedPartnerToken("jwt-token", 300, SystemCode.GEUMSANGMALL, CallSource.DMZ_FRONT)
+            new IssuedPartnerToken(
+                "jwt-token",
+                "refresh-token",
+                300,
+                1209600,
+                SystemCode.GEUMSANGMALL,
+                CallSource.DMZ_FRONT
+            )
         );
 
         mockMvc.perform(post("/api/external/geumsangmall/token")
@@ -55,7 +62,9 @@ class GeumsangmallTokenExchangeControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").value("jwt-token"))
+            .andExpect(jsonPath("$.refreshToken").value("refresh-token"))
             .andExpect(jsonPath("$.expiresIn").value(300))
+            .andExpect(jsonPath("$.refreshExpiresIn").value(1209600))
             .andExpect(jsonPath("$.systemCode").value("GEUMSANGMALL"))
             .andExpect(jsonPath("$.callSource").value("DMZ_FRONT"));
     }

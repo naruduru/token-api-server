@@ -4,6 +4,7 @@ import com.ruru.tokenapi.partner.IssuePartnerTokenRequest;
 import com.ruru.tokenapi.partner.IssuePartnerTokenResponse;
 import com.ruru.tokenapi.partner.IssuedPartnerToken;
 import com.ruru.tokenapi.partner.PartnerTokenService;
+import com.ruru.tokenapi.partner.RefreshPartnerTokenRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,6 +28,11 @@ public class PartnerTokenController {
         return toResponse(partnerTokenService.issueToken(request));
     }
 
+    @PostMapping("/token/refresh")
+    public IssuePartnerTokenResponse refreshInternalToken(@RequestBody RefreshPartnerTokenRequest request) {
+        return toResponse(partnerTokenService.refreshToken(request));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException e) {
         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -35,8 +41,10 @@ public class PartnerTokenController {
     private IssuePartnerTokenResponse toResponse(IssuedPartnerToken issuedToken) {
         return new IssuePartnerTokenResponse(
             issuedToken.accessToken(),
+            issuedToken.refreshToken(),
             "Bearer",
             issuedToken.expiresIn(),
+            issuedToken.refreshExpiresIn(),
             issuedToken.systemCode(),
             issuedToken.callSource()
         );

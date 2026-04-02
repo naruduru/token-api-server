@@ -22,6 +22,7 @@ spring.data.redis.host=localhost
 spring.data.redis.port=6379
 token.api.admin-secret=change-me-admin-secret
 token.api.access-token-ttl-seconds=1800
+token.api.refresh-token-ttl-seconds=1209600
 token.api.issuer=token-api-server
 token.api.jwt-secret=change-me-jwt-secret-change-me-jwt-secret
 ```
@@ -94,6 +95,20 @@ curl -s -X POST http://127.0.0.1:8090/api/internal/token \
   }'
 ```
 
+응답 예시:
+
+```json
+{
+  "accessToken": "<jwt-access-token>",
+  "refreshToken": "<opaque-refresh-token>",
+  "tokenType": "Bearer",
+  "expiresIn": 1800,
+  "refreshExpiresIn": 1209600,
+  "systemCode": "GEUMSANGMALL",
+  "callSource": "DMZ_FRONT"
+}
+```
+
 ## 5. Exchange Geumsangmall Front Token
 
 ```bash
@@ -111,6 +126,55 @@ curl -s -X POST http://127.0.0.1:8090/api/external/geumsangmall/token \
 curl -s http://127.0.0.1:8090/api/internal/ping \
   -H 'Authorization: Bearer <partnerAccessToken>'
 ```
+
+외부 시스템 호출 규칙:
+
+- access token은 항상 `Authorization: Bearer {accessToken}` 헤더로 전달
+- access token 만료 전까지는 재발급 없이 재사용
+- `401 Invalid or expired token` 응답을 받으면 refresh API로 access token 재발급
+- refresh token은 서버 간 백엔드 저장소에만 보관하고 브라우저나 로그에 노출하지 않음
+
+예시:
+
+```bash
+ACCESS_TOKEN="<jwt-access-token>"
+
+curl -s http://127.0.0.1:8090/api/internal/ping \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+Java 예시:
+
+```java
+HttpHeaders headers = new HttpHeaders();
+headers.setBearerAuth(accessToken);
+
+HttpEntity<Void> entity = new HttpEntity<>(headers);
+ResponseEntity<String> response = restTemplate.exchange(
+    "http://127.0.0.1:8090/api/internal/ping",
+    HttpMethod.GET,
+    entity,
+    String.class
+);
+```
+
+만료 시 refresh:
+
+```bash
+curl -s -X POST http://127.0.0.1:8090/api/internal/token/refresh \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "clientId": "geumsangmall-front",
+    "refreshToken": "<opaque-refresh-token>"
+  }'
+```
+
+refresh 규칙:
+
+- refresh token은 opaque 문자열이며 JWT가 아님
+- refresh 호출이 성공하면 기존 refresh token은 즉시 폐기되고 새 refresh token이 발급됨
+- 관리자 revoke로 access token을 폐기하면 연결된 refresh token도 함께 무효화됨
+- refresh token이 만료되었거나 이미 사용된 경우 `clientId/clientSecret`으로 다시 신규 발급
 
 ## 7. List Registered Clients
 
@@ -159,6 +223,8 @@ curl -s http://127.0.0.1:8090/api/public/health
   - body: `mallUserId`, `mallSessionId`
 - `POST /api/internal/token`
   - body: `clientId`, `clientSecret`
+- `POST /api/internal/token/refresh`
+  - body: `clientId`, `refreshToken`
 - `GET /api/internal/ping`
   - 파트너 토큰 필요
 - `GET /api/public/health`
@@ -173,6 +239,8 @@ curl -s http://127.0.0.1:8090/api/public/health
 
 - 클라이언트: `partner:client:<clientId>`
 - 활성 토큰: `partner:token:<jti>`
+- refresh 토큰: `partner:refresh:<refreshToken>`
+- access 기준 refresh 인덱스: `partner:refresh:access:<jti>`
 - revoke: `partner:revoke:<jti>`
 
 ## Postman
