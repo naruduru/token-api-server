@@ -38,10 +38,8 @@ public class GeumsangmallTokenExchangeController {
     private IssuePartnerTokenResponse toResponse(IssuedPartnerToken issuedToken) {
         return new IssuePartnerTokenResponse(
             issuedToken.accessToken(),
-            issuedToken.refreshToken(),
             "Bearer",
             issuedToken.expiresIn(),
-            issuedToken.refreshExpiresIn(),
             issuedToken.systemCode(),
             issuedToken.callSource()
         );

@@ -10,7 +10,7 @@ import java.util.List;
 @Repository
 public class RedisPartnerTokenStore implements PartnerTokenStore {
     private static final String REVOKED_INDEX_KEY = "partner:revoke:ids";
-    private static final String REFRESH_BY_ACCESS_PREFIX = "partner:refresh:access:";
+    private static final String CLIENT_TOKEN_INDEX_PREFIX = "partner:client:tokens:";
     private final StringRedisTemplate redisTemplate;
 
     public RedisPartnerTokenStore(StringRedisTemplate redisTemplate) {
@@ -29,6 +29,7 @@ public class RedisPartnerTokenStore implements PartnerTokenStore {
             + "|"
             + token.expiresAt().toString();
         redisTemplate.opsForValue().set(tokenKey(tokenId), value, ttl);
+        redisTemplate.opsForSet().add(clientTokenIndexKey(token.clientId()), tokenId);
     }
 
     @Override
@@ -53,62 +54,26 @@ public class RedisPartnerTokenStore implements PartnerTokenStore {
     }
 
     @Override
-    public void saveRefreshToken(String refreshToken, ActiveRefreshToken token, Duration ttl) {
-        String value = token.accessTokenId()
-            + "|"
-            + token.clientId()
-            + "|"
-            + token.systemCode().name()
-            + "|"
-            + token.callSource().name()
-            + "|"
-            + token.issuedAt().toString()
-            + "|"
-            + token.expiresAt().toString();
-        redisTemplate.opsForValue().set(refreshTokenKey(refreshToken), value, ttl);
-        redisTemplate.opsForValue().set(refreshAccessKey(token.accessTokenId()), refreshToken, ttl);
+    public List<ActivePartnerTokenWithId> findActiveTokensByClientId(String clientId) {
+        var tokenIds = redisTemplate.opsForSet().members(clientTokenIndexKey(clientId));
+        if (tokenIds == null || tokenIds.isEmpty()) {
+            return List.of();
+        }
+        return tokenIds.stream()
+            .map(tokenId -> new ActivePartnerTokenWithId(tokenId, findActiveToken(tokenId)))
+            .filter(tokenWithId -> tokenWithId.token() != null)
+            .sorted(java.util.Comparator.comparing((ActivePartnerTokenWithId tokenWithId) -> tokenWithId.token().issuedAt()).reversed())
+            .toList();
     }
 
     @Override
-    public ActiveRefreshToken findRefreshToken(String refreshToken) {
-        String value = redisTemplate.opsForValue().get(refreshTokenKey(refreshToken));
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-
-        String[] parts = value.split("\\|", -1);
-        if (parts.length < 6) {
-            throw new IllegalStateException("Invalid refresh token payload");
-        }
-
-        return new ActiveRefreshToken(
-            refreshToken,
-            parts[0],
-            parts[1],
-            SystemCode.valueOf(parts[2]),
-            CallSource.valueOf(parts[3]),
-            Instant.parse(parts[4]),
-            Instant.parse(parts[5])
-        );
-    }
-
-    @Override
-    public ActiveRefreshToken findRefreshTokenByAccessTokenId(String accessTokenId) {
-        String refreshToken = redisTemplate.opsForValue().get(refreshAccessKey(accessTokenId));
-        if (refreshToken == null || refreshToken.isBlank()) {
-            return null;
-        }
-        return findRefreshToken(refreshToken);
-    }
-
-    @Override
-    public void deleteRefreshToken(String refreshToken) {
-        ActiveRefreshToken refreshTokenData = findRefreshToken(refreshToken);
-        if (refreshTokenData == null) {
+    public void deleteActiveToken(String tokenId) {
+        ActivePartnerToken activeToken = findActiveToken(tokenId);
+        if (activeToken == null) {
             return;
         }
-        redisTemplate.delete(refreshTokenKey(refreshToken));
-        redisTemplate.delete(refreshAccessKey(refreshTokenData.accessTokenId()));
+        redisTemplate.delete(tokenKey(tokenId));
+        redisTemplate.opsForSet().remove(clientTokenIndexKey(activeToken.clientId()), tokenId);
     }
 
     @Override
@@ -124,11 +89,7 @@ public class RedisPartnerTokenStore implements PartnerTokenStore {
             + token.expiresAt().toString();
         redisTemplate.opsForValue().set(revokeKey(token.tokenId()), value, ttl);
         redisTemplate.opsForList().leftPush(REVOKED_INDEX_KEY, token.tokenId());
-        redisTemplate.delete(tokenKey(token.tokenId()));
-        ActiveRefreshToken refreshToken = findRefreshTokenByAccessTokenId(token.tokenId());
-        if (refreshToken != null) {
-            deleteRefreshToken(refreshToken.refreshToken());
-        }
+        deleteActiveToken(token.tokenId());
     }
 
     @Override
@@ -156,12 +117,8 @@ public class RedisPartnerTokenStore implements PartnerTokenStore {
         return "partner:revoke:" + tokenId;
     }
 
-    private String refreshTokenKey(String refreshToken) {
-        return "partner:refresh:" + refreshToken;
-    }
-
-    private String refreshAccessKey(String accessTokenId) {
-        return REFRESH_BY_ACCESS_PREFIX + accessTokenId;
+    private String clientTokenIndexKey(String clientId) {
+        return CLIENT_TOKEN_INDEX_PREFIX + clientId;
     }
 
     private RevokedPartnerToken findRevokedToken(String tokenId) {

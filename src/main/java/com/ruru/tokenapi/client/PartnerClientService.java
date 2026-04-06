@@ -57,6 +57,16 @@ public class PartnerClientService {
         return partnerClientStore.findAll();
     }
 
+    public boolean deleteClient(String clientId) {
+        String normalizedClientId = requireText(clientId, "clientId is required");
+        PartnerClient client = partnerClientStore.findByClientId(normalizedClientId);
+        if (client == null) {
+            return false;
+        }
+        partnerClientStore.delete(normalizedClientId);
+        return true;
+    }
+
     private void validateAllowedCombination(SystemCode systemCode, CallSource callSource) {
         boolean allowed = switch (systemCode) {
             case GEUMSANGMALL -> callSource == CallSource.DMZ_FRONT;

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PartnerTokenServiceTest {
     @Test
@@ -48,7 +50,6 @@ class PartnerTokenServiceTest {
         assertEquals(CallSource.DMZ_FRONT, authenticatedToken.callSource());
         assertEquals(SystemCode.GEUMSANGMALL, issuedToken.systemCode());
         assertEquals(CallSource.DMZ_FRONT, issuedToken.callSource());
-        assertNotNull(issuedToken.refreshToken());
     }
 
     @Test
@@ -192,14 +193,10 @@ class PartnerTokenServiceTest {
         assertNotNull(revoked.revokedAt());
         assertNull(tokenService.authenticate(issuedToken.accessToken()));
         assertFalse(tokenService.getRevocationHistory(10).isEmpty());
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> tokenService.refreshToken(new RefreshPartnerTokenRequest("counsel-app-backend", issuedToken.refreshToken()))
-        );
     }
 
     @Test
-    void refreshesAndRotatesRefreshToken() {
+    void returnsActiveTokensByClientId() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
             "statistics-backend",
@@ -220,16 +217,36 @@ class PartnerTokenServiceTest {
             new IssuePartnerTokenRequest("statistics-backend", "backend-secret")
         );
 
-        IssuedPartnerToken refreshedToken = tokenService.refreshToken(
-            new RefreshPartnerTokenRequest("statistics-backend", issuedToken.refreshToken())
-        );
+        List<ActivePartnerTokenWithId> activeTokens = tokenService.getActiveTokens("statistics-backend");
 
-        assertNotNull(refreshedToken.refreshToken());
-        assertNotNull(tokenService.authenticate(refreshedToken.accessToken()));
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> tokenService.refreshToken(new RefreshPartnerTokenRequest("statistics-backend", issuedToken.refreshToken()))
-        );
+        assertEquals(1, activeTokens.size());
+        assertEquals("statistics-backend", activeTokens.get(0).token().clientId());
+        assertNotNull(tokenService.authenticate(issuedToken.accessToken()));
+    }
+
+    @Test
+    void deletesActiveTokensByClientId() {
+        PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
+        clientService.register(new RegisterPartnerClientRequest(
+            "statistics-backend",
+            "backend-secret",
+            SystemCode.STATISTICS,
+            CallSource.INTERNAL_BACKEND,
+            true,
+            java.util.List.of("stats.read"),
+            "통계시스템 백엔드 호출용"
+        ));
+
+        InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
+        TokenApiProperties properties = properties();
+        PartnerJwtService jwtService = new PartnerJwtService(properties);
+        PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
+
+        tokenService.issueToken(new IssuePartnerTokenRequest("statistics-backend", "backend-secret"));
+
+        tokenService.deleteTokensByClientId("statistics-backend");
+
+        assertTrue(tokenService.getActiveTokens("statistics-backend").isEmpty());
     }
 
     private TokenApiProperties properties() {
@@ -237,7 +254,6 @@ class PartnerTokenServiceTest {
         properties.setAdminSecret("admin-secret");
         properties.setIssuer("token-api-server");
         properties.setAccessTokenTtlSeconds(1800);
-        properties.setRefreshTokenTtlSeconds(1209600);
         properties.setJwtSecret("change-me-jwt-secret-change-me-jwt-secret");
         return properties;
     }
@@ -259,12 +275,15 @@ class PartnerTokenServiceTest {
         public java.util.List<PartnerClient> findAll() {
             return clients.values().stream().toList();
         }
+
+        @Override
+        public void delete(String clientId) {
+            clients.remove(clientId);
+        }
     }
 
     private static class InMemoryPartnerTokenStore implements PartnerTokenStore {
         private final Map<String, ActivePartnerToken> activeTokens = new HashMap<>();
-        private final Map<String, ActiveRefreshToken> refreshTokens = new HashMap<>();
-        private final Map<String, String> refreshByAccessTokenId = new HashMap<>();
         private final Map<String, RevokedPartnerToken> revoked = new HashMap<>();
 
         @Override
@@ -278,38 +297,22 @@ class PartnerTokenServiceTest {
         }
 
         @Override
-        public void saveRefreshToken(String refreshToken, ActiveRefreshToken token, Duration ttl) {
-            refreshTokens.put(refreshToken, token);
-            refreshByAccessTokenId.put(token.accessTokenId(), refreshToken);
+        public List<ActivePartnerTokenWithId> findActiveTokensByClientId(String clientId) {
+            return activeTokens.entrySet().stream()
+                .filter(entry -> entry.getValue().clientId().equals(clientId))
+                .map(entry -> new ActivePartnerTokenWithId(entry.getKey(), entry.getValue()))
+                .toList();
         }
 
         @Override
-        public ActiveRefreshToken findRefreshToken(String refreshToken) {
-            return refreshTokens.get(refreshToken);
-        }
-
-        @Override
-        public ActiveRefreshToken findRefreshTokenByAccessTokenId(String accessTokenId) {
-            String refreshToken = refreshByAccessTokenId.get(accessTokenId);
-            return refreshToken == null ? null : refreshTokens.get(refreshToken);
-        }
-
-        @Override
-        public void deleteRefreshToken(String refreshToken) {
-            ActiveRefreshToken token = refreshTokens.remove(refreshToken);
-            if (token != null) {
-                refreshByAccessTokenId.remove(token.accessTokenId());
-            }
+        public void deleteActiveToken(String tokenId) {
+            activeTokens.remove(tokenId);
         }
 
         @Override
         public void revoke(RevokedPartnerToken token, Duration ttl) {
             revoked.put(token.tokenId(), token);
             activeTokens.remove(token.tokenId());
-            ActiveRefreshToken refreshToken = findRefreshTokenByAccessTokenId(token.tokenId());
-            if (refreshToken != null) {
-                deleteRefreshToken(refreshToken.refreshToken());
-            }
         }
 
         @Override

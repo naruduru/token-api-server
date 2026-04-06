@@ -1,10 +1,14 @@
 package com.ruru.tokenapi.api;
 
 import com.ruru.tokenapi.client.PartnerClientResponse;
+import com.ruru.tokenapi.client.PartnerClientTokenResponse;
 import com.ruru.tokenapi.client.PartnerClientService;
 import com.ruru.tokenapi.client.RegisterPartnerClientRequest;
 import com.ruru.tokenapi.config.TokenApiProperties;
+import com.ruru.tokenapi.partner.PartnerTokenService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,10 +27,14 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @RequestMapping("/api/admin/partner-clients")
 public class AdminPartnerClientController extends AdminProtectedController {
     private final PartnerClientService partnerClientService;
+    private final PartnerTokenService partnerTokenService;
 
-    public AdminPartnerClientController(PartnerClientService partnerClientService, TokenApiProperties properties) {
+    public AdminPartnerClientController(PartnerClientService partnerClientService,
+                                        PartnerTokenService partnerTokenService,
+                                        TokenApiProperties properties) {
         super(properties);
         this.partnerClientService = partnerClientService;
+        this.partnerTokenService = partnerTokenService;
     }
 
     @PostMapping
@@ -44,7 +52,7 @@ public class AdminPartnerClientController extends AdminProtectedController {
     @GetMapping
     public List<PartnerClientResponse> listClients() {
         return partnerClientService.findAllClients().stream()
-            .map(PartnerClientResponse::from)
+            .map(this::toResponse)
             .toList();
     }
 
@@ -54,11 +62,31 @@ public class AdminPartnerClientController extends AdminProtectedController {
         if (client == null) {
             throw new ResponseStatusException(NOT_FOUND, "Client not found");
         }
-        return PartnerClientResponse.from(client);
+        return toResponse(client);
+    }
+
+    @DeleteMapping("/{clientId}")
+    public ResponseEntity<Map<String, Object>> deleteClient(@PathVariable String clientId) {
+        boolean deleted = partnerClientService.deleteClient(clientId);
+        if (!deleted) {
+            throw new ResponseStatusException(NOT_FOUND, "Client not found");
+        }
+        partnerTokenService.deleteTokensByClientId(clientId);
+        return ResponseEntity.status(HttpStatus.OK).body(Map.of(
+            "message", "client deleted",
+            "clientId", clientId
+        ));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException e) {
         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+    }
+
+    private PartnerClientResponse toResponse(com.ruru.tokenapi.client.PartnerClient client) {
+        List<PartnerClientTokenResponse> tokens = partnerTokenService.getActiveTokens(client.clientId()).stream()
+            .map(PartnerClientTokenResponse::from)
+            .toList();
+        return PartnerClientResponse.from(client, tokens);
     }
 }

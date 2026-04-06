@@ -78,6 +78,12 @@ public class RedisPartnerClientStore implements PartnerClientStore {
             .toList();
     }
 
+    @Override
+    public void delete(String clientId) {
+        redisTemplate.delete(key(clientId));
+        redisTemplate.opsForSet().remove(IDS_KEY, clientId);
+    }
+
     private String key(String clientId) {
         return KEY_PREFIX + clientId;
     }

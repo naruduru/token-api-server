@@ -11,7 +11,6 @@ import java.util.List;
 public class TokenApiProperties {
     private String adminSecret;
     private long accessTokenTtlSeconds = 1800;
-    private long refreshTokenTtlSeconds = 1209600;
     private String issuer = "token-api-server";
     private String jwtSecret = "change-me-jwt-secret-change-me-jwt-secret";
     private List<InitialClient> initialClients = new ArrayList<>();
@@ -31,14 +30,6 @@ public class TokenApiProperties {
 
     public void setAccessTokenTtlSeconds(long accessTokenTtlSeconds) {
         this.accessTokenTtlSeconds = accessTokenTtlSeconds;
-    }
-
-    public long getRefreshTokenTtlSeconds() {
-        return refreshTokenTtlSeconds;
-    }
-
-    public void setRefreshTokenTtlSeconds(long refreshTokenTtlSeconds) {
-        this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
     }
 
     public String getIssuer() {

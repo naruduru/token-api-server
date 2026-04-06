@@ -22,7 +22,6 @@ spring.data.redis.host=localhost
 spring.data.redis.port=6379
 token.api.admin-secret=change-me-admin-secret
 token.api.access-token-ttl-seconds=1800
-token.api.refresh-token-ttl-seconds=1209600
 token.api.issuer=token-api-server
 token.api.jwt-secret=change-me-jwt-secret-change-me-jwt-secret
 ```
@@ -100,10 +99,8 @@ curl -s -X POST http://127.0.0.1:8090/api/internal/token \
 ```json
 {
   "accessToken": "<jwt-access-token>",
-  "refreshToken": "<opaque-refresh-token>",
   "tokenType": "Bearer",
   "expiresIn": 1800,
-  "refreshExpiresIn": 1209600,
   "systemCode": "GEUMSANGMALL",
   "callSource": "DMZ_FRONT"
 }
@@ -131,8 +128,7 @@ curl -s http://127.0.0.1:8090/api/internal/ping \
 
 - access token은 항상 `Authorization: Bearer {accessToken}` 헤더로 전달
 - access token 만료 전까지는 재발급 없이 재사용
-- `401 Invalid or expired token` 응답을 받으면 refresh API로 access token 재발급
-- refresh token은 서버 간 백엔드 저장소에만 보관하고 브라우저나 로그에 노출하지 않음
+- `401 Invalid or expired token` 응답을 받으면 `clientId/clientSecret`으로 다시 토큰 발급
 
 예시:
 
@@ -158,24 +154,6 @@ ResponseEntity<String> response = restTemplate.exchange(
 );
 ```
 
-만료 시 refresh:
-
-```bash
-curl -s -X POST http://127.0.0.1:8090/api/internal/token/refresh \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "clientId": "geumsangmall-front",
-    "refreshToken": "<opaque-refresh-token>"
-  }'
-```
-
-refresh 규칙:
-
-- refresh token은 opaque 문자열이며 JWT가 아님
-- refresh 호출이 성공하면 기존 refresh token은 즉시 폐기되고 새 refresh token이 발급됨
-- 관리자 revoke로 access token을 폐기하면 연결된 refresh token도 함께 무효화됨
-- refresh token이 만료되었거나 이미 사용된 경우 `clientId/clientSecret`으로 다시 신규 발급
-
 ## 7. List Registered Clients
 
 ```bash
@@ -183,7 +161,16 @@ curl -s http://127.0.0.1:8090/api/admin/partner-clients \
   -H 'X-Admin-Secret: change-me-admin-secret'
 ```
 
-## 8. Revoke Partner Token
+응답에는 각 클라이언트의 현재 활성 access token 목록이 `tokens` 필드로 포함됩니다.
+
+## 8. Delete Client
+
+```bash
+curl -s -X DELETE http://127.0.0.1:8090/api/admin/partner-clients/geumsangmall-front \
+  -H 'X-Admin-Secret: change-me-admin-secret'
+```
+
+## 9. Revoke Partner Token
 
 ```bash
 curl -s -X POST http://127.0.0.1:8090/api/admin/partner-tokens/revoke \
@@ -194,7 +181,7 @@ curl -s -X POST http://127.0.0.1:8090/api/admin/partner-tokens/revoke \
   }'
 ```
 
-## 9. Get Revocation History
+## 10. Get Revocation History
 
 ```bash
 curl -s "http://127.0.0.1:8090/api/admin/partner-tokens/revocations?limit=20" \
@@ -212,9 +199,11 @@ curl -s http://127.0.0.1:8090/api/public/health
 - `POST /api/admin/partner-clients`
   - body: `clientId`, `clientSecret`, `systemCode`, `callSource`, `active`, `scopes`, `description`
 - `GET /api/admin/partner-clients`
-  - 등록된 클라이언트 목록 조회
+  - 등록된 클라이언트 목록 조회, 활성 access token 포함
 - `GET /api/admin/partner-clients/{clientId}`
-  - 등록된 클라이언트 단건 조회
+  - 등록된 클라이언트 단건 조회, 활성 access token 포함
+- `DELETE /api/admin/partner-clients/{clientId}`
+  - 등록된 클라이언트 삭제, 활성 access token 정리
 - `POST /api/admin/partner-tokens/revoke`
   - body: `accessToken`
 - `GET /api/admin/partner-tokens/revocations`
@@ -223,8 +212,6 @@ curl -s http://127.0.0.1:8090/api/public/health
   - body: `mallUserId`, `mallSessionId`
 - `POST /api/internal/token`
   - body: `clientId`, `clientSecret`
-- `POST /api/internal/token/refresh`
-  - body: `clientId`, `refreshToken`
 - `GET /api/internal/ping`
   - 파트너 토큰 필요
 - `GET /api/public/health`
@@ -239,8 +226,7 @@ curl -s http://127.0.0.1:8090/api/public/health
 
 - 클라이언트: `partner:client:<clientId>`
 - 활성 토큰: `partner:token:<jti>`
-- refresh 토큰: `partner:refresh:<refreshToken>`
-- access 기준 refresh 인덱스: `partner:refresh:access:<jti>`
+- 클라이언트별 활성 토큰 인덱스: `partner:client:tokens:<clientId>`
 - revoke: `partner:revoke:<jti>`
 
 ## Postman

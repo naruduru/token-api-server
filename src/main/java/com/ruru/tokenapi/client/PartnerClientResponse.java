@@ -11,16 +11,18 @@ public record PartnerClientResponse(
     CallSource callSource,
     boolean active,
     List<String> scopes,
-    String description
+    String description,
+    List<PartnerClientTokenResponse> tokens
 ) {
-    public static PartnerClientResponse from(PartnerClient client) {
+    public static PartnerClientResponse from(PartnerClient client, List<PartnerClientTokenResponse> tokens) {
         return new PartnerClientResponse(
             client.clientId(),
             client.systemCode(),
             client.callSource(),
             client.active(),
             client.scopes(),
-            client.description()
+            client.description(),
+            tokens
         );
     }
 }
