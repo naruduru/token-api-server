@@ -103,21 +103,17 @@
       "response": []
     },
     {
-      "name": "Exchange Geumsangmall Front Token",
+      "name": "Issue Geumsangmall WSS Secret",
       "request": {
         "method": "POST",
         "header": [
           {
-            "key": "Content-Type",
-            "value": "application/json"
+            "key": "X-Geumsangmall-Access-Key",
+            "value": "{{geumsangmallAccessKey}}"
           }
         ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"mallUserId\": \"mall-user-1\",\n  \"mallSessionId\": \"session-1\"\n}"
-        },
         "url": {
-          "raw": "{{baseUrl}}/api/external/geumsangmall/token",
+          "raw": "{{baseUrl}}/api/external/geumsangmall/wss-secret",
           "host": [
             "{{baseUrl}}"
           ],
@@ -125,7 +121,7 @@
             "api",
             "external",
             "geumsangmall",
-            "token"
+            "wss-secret"
           ]
         }
       },

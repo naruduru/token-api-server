@@ -131,50 +131,32 @@ public class TokenApiProperties {
     }
 
     public static class Geumsangmall {
-        private boolean exchangeEnabled = false;
-        private String exchangeClientId = "geumsangmall-front";
-        private long exchangeTokenTtlSeconds = 300;
-        private String verificationUrl;
-        private String verificationSecret;
+        private String clientId = "geumsangmall-server";
+        private String accessKey;
+        private long wssSecretTtlSeconds = 30;
 
-        public boolean isExchangeEnabled() {
-            return exchangeEnabled;
+        public String getClientId() {
+            return clientId;
         }
 
-        public void setExchangeEnabled(boolean exchangeEnabled) {
-            this.exchangeEnabled = exchangeEnabled;
+        public void setClientId(String clientId) {
+            this.clientId = clientId;
         }
 
-        public String getExchangeClientId() {
-            return exchangeClientId;
+        public String getAccessKey() {
+            return accessKey;
         }
 
-        public void setExchangeClientId(String exchangeClientId) {
-            this.exchangeClientId = exchangeClientId;
+        public void setAccessKey(String accessKey) {
+            this.accessKey = accessKey;
         }
 
-        public long getExchangeTokenTtlSeconds() {
-            return exchangeTokenTtlSeconds;
+        public long getWssSecretTtlSeconds() {
+            return wssSecretTtlSeconds;
         }
 
-        public void setExchangeTokenTtlSeconds(long exchangeTokenTtlSeconds) {
-            this.exchangeTokenTtlSeconds = exchangeTokenTtlSeconds;
-        }
-
-        public String getVerificationUrl() {
-            return verificationUrl;
-        }
-
-        public void setVerificationUrl(String verificationUrl) {
-            this.verificationUrl = verificationUrl;
-        }
-
-        public String getVerificationSecret() {
-            return verificationSecret;
-        }
-
-        public void setVerificationSecret(String verificationSecret) {
-            this.verificationSecret = verificationSecret;
+        public void setWssSecretTtlSeconds(long wssSecretTtlSeconds) {
+            this.wssSecretTtlSeconds = wssSecretTtlSeconds;
         }
     }
 }

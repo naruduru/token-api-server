@@ -22,16 +22,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PartnerTokenServiceTest {
     @Test
-    void issuesAndAuthenticatesGeumsangmallFrontToken() {
+    void rejectsGeumsangmallTokenIssue() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
-            "geumsangmall-front",
-            "front-secret",
+            "geumsangmall-server",
+            "server-secret",
             SystemCode.GEUMSANGMALL,
-            CallSource.DMZ_FRONT,
+            CallSource.INTERNAL_BACKEND,
             true,
             java.util.List.of("orders.read", "orders.write"),
-            "금상몰 프론트 호출용"
+            "금상몰 서버투서버 호출용"
         ));
 
         InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
@@ -39,17 +39,11 @@ class PartnerTokenServiceTest {
         PartnerJwtService jwtService = new PartnerJwtService(properties);
         PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
 
-        IssuedPartnerToken issuedToken = tokenService.issueToken(
-            new IssuePartnerTokenRequest("geumsangmall-front", "front-secret")
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> tokenService.issueToken(new IssuePartnerTokenRequest("geumsangmall-server", "server-secret"))
         );
-
-        AuthenticatedPartnerToken authenticatedToken = tokenService.authenticate(issuedToken.accessToken());
-        assertNotNull(authenticatedToken);
-        assertEquals("geumsangmall-front", authenticatedToken.clientId());
-        assertEquals(SystemCode.GEUMSANGMALL, authenticatedToken.systemCode());
-        assertEquals(CallSource.DMZ_FRONT, authenticatedToken.callSource());
-        assertEquals(SystemCode.GEUMSANGMALL, issuedToken.systemCode());
-        assertEquals(CallSource.DMZ_FRONT, issuedToken.callSource());
+        assertEquals("Geumsangmall uses access key authentication", exception.getMessage());
     }
 
     @Test

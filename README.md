@@ -1,11 +1,12 @@
 # token-api-server
 
-연계 시스템이 우리 API를 호출할 때 사용할 JWT 토큰을 발급/검증하는 서버입니다.
+연계 시스템이 우리 API를 호출할 때 사용할 인증 정보를 관리하는 서버입니다.
 
 - 관리자 시크릿으로 호출 클라이언트 등록
 - 등록된 클라이언트는 `clientId` / `clientSecret`으로 토큰 발급
 - 발급 토큰 상태를 Redis에 TTL과 함께 저장
-- `/api/internal/**` 요청은 Bearer JWT + Redis 상태로 검증
+- `/api/internal/**` 요청은 Bearer JWT + Redis 상태 또는 금상몰 access key로 검증
+- 금상몰 WSS 연결용 30초 임시 비밀키를 Redis에서 관리
 - `systemCode`와 `callSource` 조합 정책으로 발급 대상을 제어
 
 ## Requirements
@@ -24,6 +25,9 @@ token.api.admin-secret=change-me-admin-secret
 token.api.access-token-ttl-seconds=1800
 token.api.issuer=token-api-server
 token.api.jwt-secret=change-me-jwt-secret-change-me-jwt-secret
+token.api.geumsangmall.client-id=geumsangmall-server
+token.api.geumsangmall.access-key=${GEUMSANGMALL_ACCESS_KEY:change-me-geumsangmall-access-key}
+token.api.geumsangmall.wss-secret-ttl-seconds=30
 ```
 
 ## Run
@@ -32,20 +36,20 @@ token.api.jwt-secret=change-me-jwt-secret-change-me-jwt-secret
 ./gradlew bootRun
 ```
 
-## 1. Register Geumsangmall Front Client
+## 1. Register Geumsangmall Server Client
 
 ```bash
 curl -s -X POST http://127.0.0.1:8090/api/admin/partner-clients \
   -H 'Content-Type: application/json' \
   -H 'X-Admin-Secret: change-me-admin-secret' \
   -d '{
-    "clientId": "geumsangmall-front",
-    "clientSecret": "front-secret",
+    "clientId": "geumsangmall-server",
+    "clientSecret": "server-secret",
     "systemCode": "GEUMSANGMALL",
-    "callSource": "DMZ_FRONT",
+    "callSource": "INTERNAL_BACKEND",
     "active": true,
     "scopes": ["api.read"],
-    "description": "금상몰 프론트 호출용"
+    "description": "금상몰 서버투서버 호출용"
   }'
 ```
 
@@ -89,8 +93,8 @@ curl -s -X POST http://127.0.0.1:8090/api/admin/partner-clients \
 curl -s -X POST http://127.0.0.1:8090/api/internal/token \
   -H 'Content-Type: application/json' \
   -d '{
-    "clientId": "geumsangmall-front",
-    "clientSecret": "front-secret"
+    "clientId": "statistics-backend",
+    "clientSecret": "statistics-secret"
   }'
 ```
 
@@ -101,20 +105,18 @@ curl -s -X POST http://127.0.0.1:8090/api/internal/token \
   "accessToken": "<jwt-access-token>",
   "tokenType": "Bearer",
   "expiresIn": 1800,
-  "systemCode": "GEUMSANGMALL",
-  "callSource": "DMZ_FRONT"
+  "systemCode": "STATISTICS",
+  "callSource": "INTERNAL_BACKEND"
 }
 ```
 
-## 5. Exchange Geumsangmall Front Token
+금상몰은 토큰 발급 없이 access key로 호출합니다.
+
+## 5. Issue Geumsangmall WSS Secret
 
 ```bash
-curl -s -X POST http://127.0.0.1:8090/api/external/geumsangmall/token \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "mallUserId": "mall-user-1",
-    "mallSessionId": "session-1"
-  }'
+curl -s -X POST http://127.0.0.1:8090/api/external/geumsangmall/wss-secret \
+  -H 'X-Geumsangmall-Access-Key: change-me-geumsangmall-access-key'
 ```
 
 ## 6. Call Internal API
@@ -124,11 +126,19 @@ curl -s http://127.0.0.1:8090/api/internal/ping \
   -H 'Authorization: Bearer <partnerAccessToken>'
 ```
 
+금상몰 서버투서버 호출:
+
+```bash
+curl -s http://127.0.0.1:8090/api/internal/ping \
+  -H 'X-Geumsangmall-Access-Key: change-me-geumsangmall-access-key'
+```
+
 외부 시스템 호출 규칙:
 
 - access token은 항상 `Authorization: Bearer {accessToken}` 헤더로 전달
 - access token 만료 전까지는 재발급 없이 재사용
 - `401 Invalid or expired token` 응답을 받으면 `clientId/clientSecret`으로 다시 토큰 발급
+- 금상몰은 `X-Geumsangmall-Access-Key` 또는 `X-Access-Key` 헤더로 호출
 
 예시:
 
@@ -166,7 +176,7 @@ curl -s http://127.0.0.1:8090/api/admin/partner-clients \
 ## 8. Delete Client
 
 ```bash
-curl -s -X DELETE http://127.0.0.1:8090/api/admin/partner-clients/geumsangmall-front \
+curl -s -X DELETE http://127.0.0.1:8090/api/admin/partner-clients/geumsangmall-server \
   -H 'X-Admin-Secret: change-me-admin-secret'
 ```
 
@@ -208,12 +218,13 @@ curl -s http://127.0.0.1:8090/api/public/health
   - body: `accessToken`
 - `GET /api/admin/partner-tokens/revocations`
   - revoke 이력 조회
-- `POST /api/external/geumsangmall/token`
-  - body: `mallUserId`, `mallSessionId`
+- `POST /api/external/geumsangmall/wss-secret`
+  - header: `X-Geumsangmall-Access-Key` 또는 `X-Access-Key`
+  - 금상몰 WSS 연결용 30초 임시 비밀키 발급
 - `POST /api/internal/token`
   - body: `clientId`, `clientSecret`
 - `GET /api/internal/ping`
-  - 파트너 토큰 필요
+  - 파트너 토큰 또는 금상몰 access key 필요
 - `GET /api/public/health`
   - 인증 없음
 
@@ -227,6 +238,7 @@ curl -s http://127.0.0.1:8090/api/public/health
 - 클라이언트: `partner:client:<clientId>`
 - 활성 토큰: `partner:token:<jti>`
 - 클라이언트별 활성 토큰 인덱스: `partner:client:tokens:<clientId>`
+- 금상몰 WSS 임시 비밀키: `geumsangmall:wss-secret:<secret>`
 - revoke: `partner:revoke:<jti>`
 
 ## Postman
@@ -237,7 +249,6 @@ curl -s http://127.0.0.1:8090/api/public/health
 ## Notes
 
 - 허용 조합은 설계 문서 `TOKEN_CLIENT_DESIGN.md` 기준으로 관리합니다.
-- 금상몰 프론트 전용 교환 플로우는 `GEUMSANGMALL_TOKEN_EXCHANGE.md`를 참고합니다.
 - Bearer 토큰을 서버에서 추출하고 사용하는 샘플은 `AUTHORIZATION_HEADER_SAMPLE.md`를 참고합니다.
 - 기본 운영 초기 등록 데이터는 `application.properties`의 `token.api.initial-clients`로 로드됩니다.
 - 운영 환경에서는 각 `clientSecret`을 환경변수로 주입하는 전제를 둡니다.

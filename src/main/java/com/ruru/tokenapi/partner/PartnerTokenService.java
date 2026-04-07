@@ -38,20 +38,11 @@ public class PartnerTokenService {
         if (client == null || !client.clientSecret().equals(clientSecret)) {
             throw new IllegalArgumentException("Invalid client credentials");
         }
+        if (client.systemCode() == SystemCode.GEUMSANGMALL) {
+            throw new IllegalArgumentException("Geumsangmall uses access key authentication");
+        }
 
         return issueTokenForClient(client, properties.getAccessTokenTtlSeconds());
-    }
-
-    public IssuedPartnerToken issueGeumsangmallExchangeToken() {
-        var geumsangmall = properties.getGeumsangmall();
-        if (!geumsangmall.isExchangeEnabled()) {
-            throw new IllegalStateException("Geumsangmall token exchange is disabled");
-        }
-        PartnerClient client = partnerClientService.findActiveClient(geumsangmall.getExchangeClientId());
-        if (client == null || client.systemCode() != SystemCode.GEUMSANGMALL || client.callSource() != CallSource.DMZ_FRONT) {
-            throw new IllegalStateException("Geumsangmall exchange client is not configured correctly");
-        }
-        return issueTokenForClient(client, geumsangmall.getExchangeTokenTtlSeconds());
     }
 
     public AuthenticatedPartnerToken authenticate(String accessToken) {

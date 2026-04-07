@@ -69,7 +69,7 @@ public class PartnerClientService {
 
     private void validateAllowedCombination(SystemCode systemCode, CallSource callSource) {
         boolean allowed = switch (systemCode) {
-            case GEUMSANGMALL -> callSource == CallSource.DMZ_FRONT;
+            case GEUMSANGMALL -> callSource == CallSource.INTERNAL_BACKEND;
             case SIGN_COUNSEL, STATISTICS, COUNSEL_APP -> callSource == CallSource.INTERNAL_BACKEND;
         };
         if (!allowed) {

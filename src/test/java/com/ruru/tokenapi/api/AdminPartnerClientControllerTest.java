@@ -3,6 +3,7 @@ package com.ruru.tokenapi.api;
 import com.ruru.tokenapi.client.PartnerClient;
 import com.ruru.tokenapi.client.PartnerClientService;
 import com.ruru.tokenapi.config.TokenApiProperties;
+import com.ruru.tokenapi.geumsangmall.GeumsangmallAccessKeyService;
 import com.ruru.tokenapi.partner.ActivePartnerToken;
 import com.ruru.tokenapi.partner.ActivePartnerTokenWithId;
 import com.ruru.tokenapi.partner.CallSource;
@@ -41,6 +42,9 @@ class AdminPartnerClientControllerTest {
     private PartnerTokenService partnerTokenService;
 
     @MockBean
+    private GeumsangmallAccessKeyService geumsangmallAccessKeyService;
+
+    @MockBean
     private TokenApiProperties tokenApiProperties;
 
     @BeforeEach
@@ -54,10 +58,10 @@ class AdminPartnerClientControllerTest {
             "geumsangmall-front",
             "secret",
             SystemCode.GEUMSANGMALL,
-            CallSource.DMZ_FRONT,
+            CallSource.INTERNAL_BACKEND,
             true,
             List.of("api.read"),
-            "금상몰 프론트 호출용"
+            "금상몰 서버투서버 호출용"
         ));
 
         mockMvc.perform(post("/api/admin/partner-clients")
@@ -68,7 +72,7 @@ class AdminPartnerClientControllerTest {
                       "clientId":"geumsangmall-front",
                       "clientSecret":"secret",
                       "systemCode":"GEUMSANGMALL",
-                      "callSource":"DMZ_FRONT",
+                      "callSource":"INTERNAL_BACKEND",
                       "active":true,
                       "scopes":["api.read"]
                     }
@@ -76,7 +80,7 @@ class AdminPartnerClientControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.clientId").value("geumsangmall-front"))
             .andExpect(jsonPath("$.systemCode").value("GEUMSANGMALL"))
-            .andExpect(jsonPath("$.callSource").value("DMZ_FRONT"));
+            .andExpect(jsonPath("$.callSource").value("INTERNAL_BACKEND"));
     }
 
     @Test
