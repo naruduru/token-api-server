@@ -3,7 +3,7 @@ package com.ruru.tokenapi.api;
 import com.ruru.tokenapi.client.PartnerClient;
 import com.ruru.tokenapi.client.PartnerClientService;
 import com.ruru.tokenapi.config.TokenApiProperties;
-import com.ruru.tokenapi.geumsangmall.GeumsangmallAccessKeyService;
+import com.ruru.tokenapi.auth.PartnerClientSecretAuthService;
 import com.ruru.tokenapi.partner.ActivePartnerToken;
 import com.ruru.tokenapi.partner.ActivePartnerTokenWithId;
 import com.ruru.tokenapi.partner.CallSource;
@@ -42,7 +42,7 @@ class AdminPartnerClientControllerTest {
     private PartnerTokenService partnerTokenService;
 
     @MockBean
-    private GeumsangmallAccessKeyService geumsangmallAccessKeyService;
+    private PartnerClientSecretAuthService partnerClientSecretAuthService;
 
     @MockBean
     private TokenApiProperties tokenApiProperties;
@@ -58,10 +58,10 @@ class AdminPartnerClientControllerTest {
             "geumsangmall-front",
             "secret",
             SystemCode.GEUMSANGMALL,
-            CallSource.INTERNAL_BACKEND,
+            CallSource.DMZ_FRONT,
             true,
             List.of("api.read"),
-            "금상몰 서버투서버 호출용"
+            "금상몰 프론트 호출용"
         ));
 
         mockMvc.perform(post("/api/admin/partner-clients")
@@ -72,15 +72,16 @@ class AdminPartnerClientControllerTest {
                       "clientId":"geumsangmall-front",
                       "clientSecret":"secret",
                       "systemCode":"GEUMSANGMALL",
-                      "callSource":"INTERNAL_BACKEND",
+                      "callSource":"DMZ_FRONT",
                       "active":true,
                       "scopes":["api.read"]
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.clientId").value("geumsangmall-front"))
+            .andExpect(jsonPath("$.clientSecret").value("secret"))
             .andExpect(jsonPath("$.systemCode").value("GEUMSANGMALL"))
-            .andExpect(jsonPath("$.callSource").value("INTERNAL_BACKEND"));
+            .andExpect(jsonPath("$.callSource").value("DMZ_FRONT"));
     }
 
     @Test
@@ -127,5 +128,24 @@ class AdminPartnerClientControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.message").value("client deleted"))
             .andExpect(jsonPath("$.clientId").value("statistics-backend"));
+    }
+
+    @Test
+    void rotatesClientSecret() throws Exception {
+        given(partnerClientService.rotateSecret("statistics-backend")).willReturn(new PartnerClient(
+            "statistics-backend",
+            "rotated-secret",
+            SystemCode.STATISTICS,
+            CallSource.INTERNAL_BACKEND,
+            true,
+            List.of("api.read"),
+            "통계시스템 백엔드 호출용"
+        ));
+
+        mockMvc.perform(post("/api/admin/partner-clients/statistics-backend/secret")
+                .header("X-Admin-Secret", "admin-secret"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("client secret rotated"))
+            .andExpect(jsonPath("$.clientSecret").value("rotated-secret"));
     }
 }

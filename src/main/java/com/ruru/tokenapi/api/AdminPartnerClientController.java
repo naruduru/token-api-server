@@ -43,6 +43,7 @@ public class AdminPartnerClientController extends AdminProtectedController {
         return Map.of(
             "message", "client registered",
             "clientId", client.clientId(),
+            "clientSecret", client.clientSecret(),
             "systemCode", client.systemCode(),
             "callSource", client.callSource(),
             "active", client.active()
@@ -76,6 +77,19 @@ public class AdminPartnerClientController extends AdminProtectedController {
             "message", "client deleted",
             "clientId", clientId
         ));
+    }
+
+    @PostMapping("/{clientId}/secret")
+    public Map<String, Object> rotateClientSecret(@PathVariable String clientId) {
+        var client = partnerClientService.rotateSecret(clientId);
+        if (client == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Client not found");
+        }
+        return Map.of(
+            "message", "client secret rotated",
+            "clientId", client.clientId(),
+            "clientSecret", client.clientSecret()
+        );
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

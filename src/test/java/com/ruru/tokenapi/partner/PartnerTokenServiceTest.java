@@ -22,16 +22,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PartnerTokenServiceTest {
     @Test
-    void rejectsGeumsangmallTokenIssue() {
+    void issuesAndAuthenticatesGeumsangmallFrontToken() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
-            "geumsangmall-server",
-            "server-secret",
+            "geumsangmall-front",
+            "front-secret",
             SystemCode.GEUMSANGMALL,
-            CallSource.INTERNAL_BACKEND,
+            CallSource.DMZ_FRONT,
             true,
             java.util.List.of("orders.read", "orders.write"),
-            "금상몰 서버투서버 호출용"
+            "금상몰 프론트 호출용"
         ));
 
         InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
@@ -39,15 +39,20 @@ class PartnerTokenServiceTest {
         PartnerJwtService jwtService = new PartnerJwtService(properties);
         PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
 
-        IllegalArgumentException exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> tokenService.issueToken(new IssuePartnerTokenRequest("geumsangmall-server", "server-secret"))
+        IssuedPartnerToken issuedToken = tokenService.issueToken(
+            new IssuePartnerTokenRequest("geumsangmall-front", "front-secret")
         );
-        assertEquals("Geumsangmall uses access key authentication", exception.getMessage());
+
+        AuthenticatedPartnerToken authenticatedToken = tokenService.authenticate(issuedToken.accessToken());
+        assertNotNull(authenticatedToken);
+        assertEquals("geumsangmall-front", authenticatedToken.clientId());
+        assertEquals(SystemCode.GEUMSANGMALL, authenticatedToken.systemCode());
+        assertEquals(CallSource.DMZ_FRONT, authenticatedToken.callSource());
+        assertNotNull(issuedToken.refreshToken());
     }
 
     @Test
-    void issuesAndAuthenticatesInternalBackendToken() {
+    void rejectsInternalBackendTokenIssue() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
             "statistics-backend",
@@ -64,14 +69,11 @@ class PartnerTokenServiceTest {
         PartnerJwtService jwtService = new PartnerJwtService(properties);
         PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
 
-        IssuedPartnerToken issuedToken = tokenService.issueToken(
-            new IssuePartnerTokenRequest("statistics-backend", "backend-secret")
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> tokenService.issueToken(new IssuePartnerTokenRequest("statistics-backend", "backend-secret"))
         );
-
-        AuthenticatedPartnerToken authenticatedToken = tokenService.authenticate(issuedToken.accessToken());
-        assertNotNull(authenticatedToken);
-        assertEquals(SystemCode.STATISTICS, authenticatedToken.systemCode());
-        assertEquals(CallSource.INTERNAL_BACKEND, authenticatedToken.callSource());
+        assertEquals("Client uses secret key authentication", exception.getMessage());
     }
 
     @Test
@@ -110,6 +112,24 @@ class PartnerTokenServiceTest {
             ))
         );
         assertEquals("systemCode and callSource combination is not allowed", exception.getMessage());
+    }
+
+    @Test
+    void generatesClientSecretWhenMissing() {
+        PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
+
+        PartnerClient client = clientService.register(new RegisterPartnerClientRequest(
+            "statistics-backend",
+            null,
+            SystemCode.STATISTICS,
+            CallSource.INTERNAL_BACKEND,
+            true,
+            java.util.List.of("api.read"),
+            "통계시스템 백엔드 호출용"
+        ));
+
+        assertNotNull(client.clientSecret());
+        assertFalse(client.clientSecret().isBlank());
     }
 
     @Test
@@ -162,13 +182,13 @@ class PartnerTokenServiceTest {
     void revokesActiveToken() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
-            "counsel-app-backend",
-            "app-secret",
-            SystemCode.COUNSEL_APP,
-            CallSource.INTERNAL_BACKEND,
+            "geumsangmall-front",
+            "front-secret",
+            SystemCode.GEUMSANGMALL,
+            CallSource.DMZ_FRONT,
             true,
             java.util.List.of("api.read"),
-            "상담APP 백엔드 호출용"
+            "금상몰 프론트 호출용"
         ));
 
         InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
@@ -177,13 +197,13 @@ class PartnerTokenServiceTest {
         PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
 
         IssuedPartnerToken issuedToken = tokenService.issueToken(
-            new IssuePartnerTokenRequest("counsel-app-backend", "app-secret")
+            new IssuePartnerTokenRequest("geumsangmall-front", "front-secret")
         );
 
         RevokePartnerTokenResponse revoked = tokenService.revoke(issuedToken.accessToken());
 
         assertEquals("token revoked", revoked.message());
-        assertEquals("counsel-app-backend", revoked.clientId());
+        assertEquals("geumsangmall-front", revoked.clientId());
         assertNotNull(revoked.revokedAt());
         assertNull(tokenService.authenticate(issuedToken.accessToken()));
         assertFalse(tokenService.getRevocationHistory(10).isEmpty());
@@ -193,13 +213,13 @@ class PartnerTokenServiceTest {
     void returnsActiveTokensByClientId() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
-            "statistics-backend",
-            "backend-secret",
-            SystemCode.STATISTICS,
-            CallSource.INTERNAL_BACKEND,
+            "geumsangmall-front",
+            "front-secret",
+            SystemCode.GEUMSANGMALL,
+            CallSource.DMZ_FRONT,
             true,
-            java.util.List.of("stats.read"),
-            "통계시스템 백엔드 호출용"
+            java.util.List.of("api.read"),
+            "금상몰 프론트 호출용"
         ));
 
         InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
@@ -208,13 +228,13 @@ class PartnerTokenServiceTest {
         PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
 
         IssuedPartnerToken issuedToken = tokenService.issueToken(
-            new IssuePartnerTokenRequest("statistics-backend", "backend-secret")
+            new IssuePartnerTokenRequest("geumsangmall-front", "front-secret")
         );
 
-        List<ActivePartnerTokenWithId> activeTokens = tokenService.getActiveTokens("statistics-backend");
+        List<ActivePartnerTokenWithId> activeTokens = tokenService.getActiveTokens("geumsangmall-front");
 
         assertEquals(1, activeTokens.size());
-        assertEquals("statistics-backend", activeTokens.get(0).token().clientId());
+        assertEquals("geumsangmall-front", activeTokens.get(0).token().clientId());
         assertNotNull(tokenService.authenticate(issuedToken.accessToken()));
     }
 
@@ -222,13 +242,13 @@ class PartnerTokenServiceTest {
     void deletesActiveTokensByClientId() {
         PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
         clientService.register(new RegisterPartnerClientRequest(
-            "statistics-backend",
-            "backend-secret",
-            SystemCode.STATISTICS,
-            CallSource.INTERNAL_BACKEND,
+            "geumsangmall-front",
+            "front-secret",
+            SystemCode.GEUMSANGMALL,
+            CallSource.DMZ_FRONT,
             true,
-            java.util.List.of("stats.read"),
-            "통계시스템 백엔드 호출용"
+            java.util.List.of("api.read"),
+            "금상몰 프론트 호출용"
         ));
 
         InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
@@ -236,11 +256,45 @@ class PartnerTokenServiceTest {
         PartnerJwtService jwtService = new PartnerJwtService(properties);
         PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
 
-        tokenService.issueToken(new IssuePartnerTokenRequest("statistics-backend", "backend-secret"));
+        tokenService.issueToken(new IssuePartnerTokenRequest("geumsangmall-front", "front-secret"));
 
-        tokenService.deleteTokensByClientId("statistics-backend");
+        tokenService.deleteTokensByClientId("geumsangmall-front");
 
-        assertTrue(tokenService.getActiveTokens("statistics-backend").isEmpty());
+        assertTrue(tokenService.getActiveTokens("geumsangmall-front").isEmpty());
+    }
+
+    @Test
+    void refreshesAndRotatesRefreshToken() {
+        PartnerClientService clientService = new PartnerClientService(new InMemoryPartnerClientStore());
+        clientService.register(new RegisterPartnerClientRequest(
+            "geumsangmall-front",
+            "front-secret",
+            SystemCode.GEUMSANGMALL,
+            CallSource.DMZ_FRONT,
+            true,
+            java.util.List.of("api.read"),
+            "금상몰 프론트 호출용"
+        ));
+
+        InMemoryPartnerTokenStore tokenStore = new InMemoryPartnerTokenStore();
+        TokenApiProperties properties = properties();
+        PartnerJwtService jwtService = new PartnerJwtService(properties);
+        PartnerTokenService tokenService = new PartnerTokenService(clientService, tokenStore, jwtService, properties);
+
+        IssuedPartnerToken issuedToken = tokenService.issueToken(
+            new IssuePartnerTokenRequest("geumsangmall-front", "front-secret")
+        );
+
+        IssuedPartnerToken refreshedToken = tokenService.refreshToken(
+            new RefreshPartnerTokenRequest("geumsangmall-front", issuedToken.refreshToken())
+        );
+
+        assertNotNull(refreshedToken.refreshToken());
+        assertNotNull(tokenService.authenticate(refreshedToken.accessToken()));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> tokenService.refreshToken(new RefreshPartnerTokenRequest("geumsangmall-front", issuedToken.refreshToken()))
+        );
     }
 
     private TokenApiProperties properties() {
@@ -248,6 +302,7 @@ class PartnerTokenServiceTest {
         properties.setAdminSecret("admin-secret");
         properties.setIssuer("token-api-server");
         properties.setAccessTokenTtlSeconds(1800);
+        properties.setRefreshTokenTtlSeconds(1209600);
         properties.setJwtSecret("change-me-jwt-secret-change-me-jwt-secret");
         return properties;
     }
@@ -278,6 +333,8 @@ class PartnerTokenServiceTest {
 
     private static class InMemoryPartnerTokenStore implements PartnerTokenStore {
         private final Map<String, ActivePartnerToken> activeTokens = new HashMap<>();
+        private final Map<String, ActiveRefreshToken> refreshTokens = new HashMap<>();
+        private final Map<String, String> refreshByAccessTokenId = new HashMap<>();
         private final Map<String, RevokedPartnerToken> revoked = new HashMap<>();
 
         @Override
@@ -304,9 +361,38 @@ class PartnerTokenServiceTest {
         }
 
         @Override
+        public void saveRefreshToken(String refreshToken, ActiveRefreshToken token, Duration ttl) {
+            refreshTokens.put(refreshToken, token);
+            refreshByAccessTokenId.put(token.accessTokenId(), refreshToken);
+        }
+
+        @Override
+        public ActiveRefreshToken findRefreshToken(String refreshToken) {
+            return refreshTokens.get(refreshToken);
+        }
+
+        @Override
+        public ActiveRefreshToken findRefreshTokenByAccessTokenId(String accessTokenId) {
+            String refreshToken = refreshByAccessTokenId.get(accessTokenId);
+            return refreshToken == null ? null : refreshTokens.get(refreshToken);
+        }
+
+        @Override
+        public void deleteRefreshToken(String refreshToken) {
+            ActiveRefreshToken token = refreshTokens.remove(refreshToken);
+            if (token != null) {
+                refreshByAccessTokenId.remove(token.accessTokenId());
+            }
+        }
+
+        @Override
         public void revoke(RevokedPartnerToken token, Duration ttl) {
             revoked.put(token.tokenId(), token);
             activeTokens.remove(token.tokenId());
+            ActiveRefreshToken refreshToken = findRefreshTokenByAccessTokenId(token.tokenId());
+            if (refreshToken != null) {
+                deleteRefreshToken(refreshToken.refreshToken());
+            }
         }
 
         @Override

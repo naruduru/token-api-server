@@ -1,6 +1,9 @@
 package com.ruru.tokenapi.geumsangmall;
 
+import com.ruru.tokenapi.auth.PartnerClientSecretAuthService;
+import com.ruru.tokenapi.client.PartnerClient;
 import com.ruru.tokenapi.config.TokenApiProperties;
+import com.ruru.tokenapi.partner.SystemCode;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -10,21 +13,24 @@ import java.util.Base64;
 
 @Service
 public class GeumsangmallWssSecretService {
-    private final GeumsangmallAccessKeyService accessKeyService;
+    private final PartnerClientSecretAuthService partnerClientSecretAuthService;
     private final GeumsangmallWssSecretStore secretStore;
     private final TokenApiProperties properties;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public GeumsangmallWssSecretService(GeumsangmallAccessKeyService accessKeyService,
+    public GeumsangmallWssSecretService(PartnerClientSecretAuthService partnerClientSecretAuthService,
                                         GeumsangmallWssSecretStore secretStore,
                                         TokenApiProperties properties) {
-        this.accessKeyService = accessKeyService;
+        this.partnerClientSecretAuthService = partnerClientSecretAuthService;
         this.secretStore = secretStore;
         this.properties = properties;
     }
 
-    public GeumsangmallWssSecretResponse issue(String accessKey) {
-        accessKeyService.validate(accessKey);
+    public GeumsangmallWssSecretResponse issue(String clientId, String clientSecret) {
+        PartnerClient client = partnerClientSecretAuthService.validateClientSecret(clientId, clientSecret);
+        if (client.systemCode() != SystemCode.GEUMSANGMALL) {
+            throw new IllegalArgumentException("Only Geumsangmall client can issue WSS secret");
+        }
 
         long expiresIn = Math.max(1, properties.getGeumsangmall().getWssSecretTtlSeconds());
         Instant issuedAt = Instant.now();
@@ -34,7 +40,7 @@ public class GeumsangmallWssSecretService {
         secretStore.save(
             new GeumsangmallWssSecret(
                 secret,
-                properties.getGeumsangmall().getClientId(),
+                client.clientId(),
                 issuedAt,
                 expiresAt
             ),
@@ -48,7 +54,7 @@ public class GeumsangmallWssSecretService {
             return null;
         }
         GeumsangmallWssSecret storedSecret = secretStore.find(secret.trim());
-        if (storedSecret == null || storedSecret.expiresAt().isBefore(Instant.now())) {
+        if (storedSecret == null || !storedSecret.expiresAt().isAfter(Instant.now())) {
             return null;
         }
         secretStore.delete(storedSecret.secret());

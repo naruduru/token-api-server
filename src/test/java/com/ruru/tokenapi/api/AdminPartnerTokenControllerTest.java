@@ -1,7 +1,7 @@
 package com.ruru.tokenapi.api;
 
+import com.ruru.tokenapi.auth.PartnerClientSecretAuthService;
 import com.ruru.tokenapi.config.TokenApiProperties;
-import com.ruru.tokenapi.geumsangmall.GeumsangmallAccessKeyService;
 import com.ruru.tokenapi.partner.CallSource;
 import com.ruru.tokenapi.partner.PartnerTokenService;
 import com.ruru.tokenapi.partner.RevokePartnerTokenResponse;
@@ -36,7 +36,7 @@ class AdminPartnerTokenControllerTest {
     private PartnerTokenService partnerTokenService;
 
     @MockBean
-    private GeumsangmallAccessKeyService geumsangmallAccessKeyService;
+    private PartnerClientSecretAuthService partnerClientSecretAuthService;
 
     @MockBean
     private TokenApiProperties tokenApiProperties;
@@ -53,7 +53,7 @@ class AdminPartnerTokenControllerTest {
             "token-1",
             "geumsangmall-front",
             SystemCode.GEUMSANGMALL,
-            CallSource.INTERNAL_BACKEND,
+            CallSource.DMZ_FRONT,
             Instant.parse("2026-04-01T00:00:00Z")
         ));
 
@@ -68,7 +68,7 @@ class AdminPartnerTokenControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.message").value("token revoked"))
             .andExpect(jsonPath("$.tokenId").value("token-1"))
-            .andExpect(jsonPath("$.callSource").value("INTERNAL_BACKEND"));
+            .andExpect(jsonPath("$.callSource").value("DMZ_FRONT"));
     }
 
     @Test

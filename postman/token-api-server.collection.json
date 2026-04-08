@@ -71,6 +71,9 @@
               "var json = pm.response.json();",
               "if (json.accessToken) {",
               "  pm.environment.set('partnerAccessToken', json.accessToken);",
+              "}",
+              "if (json.refreshToken) {",
+              "  pm.environment.set('refreshToken', json.refreshToken);",
               "}"
             ]
           }
@@ -86,7 +89,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"clientId\": \"geumsangmall-front\",\n  \"clientSecret\": \"front-secret\"\n}"
+          "raw": "{\n  \"clientId\": \"geumsangmall-front\",\n  \"clientSecret\": \"{{geumsangmallClientSecret}}\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/api/internal/token",
@@ -103,13 +106,46 @@
       "response": []
     },
     {
+      "name": "Refresh Partner Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"clientId\": \"geumsangmall-front\",\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/internal/token/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "internal",
+            "token",
+            "refresh"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Issue Geumsangmall WSS Secret",
       "request": {
         "method": "POST",
         "header": [
           {
-            "key": "X-Geumsangmall-Access-Key",
-            "value": "{{geumsangmallAccessKey}}"
+            "key": "X-Client-Id",
+            "value": "geumsangmall-front"
+          },
+          {
+            "key": "X-Client-Secret",
+            "value": "{{geumsangmallClientSecret}}"
           }
         ],
         "url": {
@@ -223,6 +259,34 @@
           {
             "key": "Authorization",
             "value": "Bearer {{partnerAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/internal/ping",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "internal",
+            "ping"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Internal Ping With Secret",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Id",
+            "value": "statistics-backend"
+          },
+          {
+            "key": "X-Client-Secret",
+            "value": "{{statisticsClientSecret}}"
           }
         ],
         "url": {

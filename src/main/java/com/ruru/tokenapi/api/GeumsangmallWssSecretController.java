@@ -22,10 +22,10 @@ public class GeumsangmallWssSecretController {
 
     @PostMapping("/wss-secret")
     public GeumsangmallWssSecretResponse issueWssSecret(
-        @RequestHeader(name = "X-Geumsangmall-Access-Key", required = false) String geumsangmallAccessKey,
-        @RequestHeader(name = "X-Access-Key", required = false) String accessKey
+        @RequestHeader(name = "X-Client-Id", required = false) String clientId,
+        @RequestHeader(name = "X-Client-Secret", required = false) String clientSecret
     ) {
-        return wssSecretService.issue(geumsangmallAccessKey != null ? geumsangmallAccessKey : accessKey);
+        return wssSecretService.issue(clientId, clientSecret);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

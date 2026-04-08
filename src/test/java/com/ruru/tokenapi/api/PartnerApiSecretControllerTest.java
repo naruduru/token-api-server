@@ -1,8 +1,8 @@
 package com.ruru.tokenapi.api;
 
 import com.ruru.tokenapi.auth.AuthenticatedPartnerToken;
+import com.ruru.tokenapi.auth.PartnerClientSecretAuthService;
 import com.ruru.tokenapi.config.TokenApiProperties;
-import com.ruru.tokenapi.geumsangmall.GeumsangmallAccessKeyService;
 import com.ruru.tokenapi.partner.CallSource;
 import com.ruru.tokenapi.partner.PartnerTokenService;
 import com.ruru.tokenapi.partner.SystemCode;
@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(PartnerApiController.class)
-class PartnerApiAccessKeyControllerTest {
+class PartnerApiSecretControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
@@ -28,26 +28,29 @@ class PartnerApiAccessKeyControllerTest {
     private PartnerTokenService partnerTokenService;
 
     @MockBean
-    private GeumsangmallAccessKeyService geumsangmallAccessKeyService;
+    private PartnerClientSecretAuthService partnerClientSecretAuthService;
 
     @MockBean
     private TokenApiProperties tokenApiProperties;
 
     @Test
-    void acceptsGeumsangmallAccessKeyForInternalApi() throws Exception {
-        given(geumsangmallAccessKeyService.authenticate("access-key")).willReturn(new AuthenticatedPartnerToken(
-            "geumsangmall-access-key",
-            "geumsangmall-server",
-            SystemCode.GEUMSANGMALL,
-            CallSource.INTERNAL_BACKEND,
-            List.of("api.read")
-        ));
+    void acceptsInternalClientSecretForInternalApi() throws Exception {
+        given(partnerClientSecretAuthService.authenticate("statistics-backend", "backend-secret")).willReturn(
+            new AuthenticatedPartnerToken(
+                "secret:statistics-backend",
+                "statistics-backend",
+                SystemCode.STATISTICS,
+                CallSource.INTERNAL_BACKEND,
+                List.of("api.read")
+            )
+        );
 
         mockMvc.perform(get("/api/internal/ping")
-                .header("X-Geumsangmall-Access-Key", "access-key"))
+                .header("X-Client-Id", "statistics-backend")
+                .header("X-Client-Secret", "backend-secret"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.clientId").value("geumsangmall-server"))
-            .andExpect(jsonPath("$.systemCode").value("GEUMSANGMALL"))
+            .andExpect(jsonPath("$.clientId").value("statistics-backend"))
+            .andExpect(jsonPath("$.systemCode").value("STATISTICS"))
             .andExpect(jsonPath("$.callSource").value("INTERNAL_BACKEND"));
     }
 }

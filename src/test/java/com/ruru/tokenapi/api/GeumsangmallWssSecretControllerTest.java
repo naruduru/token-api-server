@@ -1,7 +1,7 @@
 package com.ruru.tokenapi.api;
 
+import com.ruru.tokenapi.auth.PartnerClientSecretAuthService;
 import com.ruru.tokenapi.config.TokenApiProperties;
-import com.ruru.tokenapi.geumsangmall.GeumsangmallAccessKeyService;
 import com.ruru.tokenapi.geumsangmall.GeumsangmallWssSecretResponse;
 import com.ruru.tokenapi.geumsangmall.GeumsangmallWssSecretService;
 import com.ruru.tokenapi.partner.PartnerTokenService;
@@ -33,7 +33,7 @@ class GeumsangmallWssSecretControllerTest {
     private PartnerTokenService partnerTokenService;
 
     @MockBean
-    private GeumsangmallAccessKeyService geumsangmallAccessKeyService;
+    private PartnerClientSecretAuthService partnerClientSecretAuthService;
 
     @MockBean
     private TokenApiProperties tokenApiProperties;
@@ -45,14 +45,15 @@ class GeumsangmallWssSecretControllerTest {
 
     @Test
     void issuesWssSecret() throws Exception {
-        given(wssSecretService.issue(anyString())).willReturn(new GeumsangmallWssSecretResponse(
+        given(wssSecretService.issue(anyString(), anyString())).willReturn(new GeumsangmallWssSecretResponse(
             "temporary-secret",
             30,
             Instant.parse("2026-04-08T00:00:30Z")
         ));
 
         mockMvc.perform(post("/api/external/geumsangmall/wss-secret")
-                .header("X-Geumsangmall-Access-Key", "access-key"))
+                .header("X-Client-Id", "geumsangmall-front")
+                .header("X-Client-Secret", "front-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.secret").value("temporary-secret"))
             .andExpect(jsonPath("$.expiresIn").value(30));

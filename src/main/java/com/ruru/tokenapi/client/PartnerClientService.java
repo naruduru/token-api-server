@@ -4,11 +4,14 @@ import com.ruru.tokenapi.partner.CallSource;
 import com.ruru.tokenapi.partner.SystemCode;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.util.List;
+import java.util.Base64;
 
 @Service
 public class PartnerClientService {
     private final PartnerClientStore partnerClientStore;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public PartnerClientService(PartnerClientStore partnerClientStore) {
         this.partnerClientStore = partnerClientStore;
@@ -16,7 +19,7 @@ public class PartnerClientService {
 
     public PartnerClient register(RegisterPartnerClientRequest request) {
         String clientId = requireText(request.clientId(), "clientId is required");
-        String clientSecret = requireText(request.clientSecret(), "clientSecret is required");
+        String clientSecret = normalizeSecret(request.clientSecret());
         if (request.systemCode() == null) {
             throw new IllegalArgumentException("systemCode is required");
         }
@@ -67,9 +70,28 @@ public class PartnerClientService {
         return true;
     }
 
+    public PartnerClient rotateSecret(String clientId) {
+        String normalizedClientId = requireText(clientId, "clientId is required");
+        PartnerClient client = partnerClientStore.findByClientId(normalizedClientId);
+        if (client == null) {
+            return null;
+        }
+        PartnerClient updatedClient = new PartnerClient(
+            client.clientId(),
+            generateSecret(),
+            client.systemCode(),
+            client.callSource(),
+            client.active(),
+            client.scopes(),
+            client.description()
+        );
+        partnerClientStore.save(updatedClient);
+        return updatedClient;
+    }
+
     private void validateAllowedCombination(SystemCode systemCode, CallSource callSource) {
         boolean allowed = switch (systemCode) {
-            case GEUMSANGMALL -> callSource == CallSource.INTERNAL_BACKEND;
+            case GEUMSANGMALL -> callSource == CallSource.DMZ_FRONT;
             case SIGN_COUNSEL, STATISTICS, COUNSEL_APP -> callSource == CallSource.INTERNAL_BACKEND;
         };
         if (!allowed) {
@@ -100,5 +122,18 @@ public class PartnerClientService {
             .map(String::trim)
             .distinct()
             .toList();
+    }
+
+    private String normalizeSecret(String clientSecret) {
+        if (clientSecret == null || clientSecret.isBlank()) {
+            return generateSecret();
+        }
+        return clientSecret.trim();
+    }
+
+    private String generateSecret() {
+        byte[] random = new byte[32];
+        secureRandom.nextBytes(random);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     }
 }

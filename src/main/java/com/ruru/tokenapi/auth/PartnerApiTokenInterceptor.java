@@ -1,6 +1,5 @@
 package com.ruru.tokenapi.auth;
 
-import com.ruru.tokenapi.geumsangmall.GeumsangmallAccessKeyService;
 import com.ruru.tokenapi.partner.PartnerTokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -15,25 +14,28 @@ import java.io.IOException;
 @Component
 public class PartnerApiTokenInterceptor implements HandlerInterceptor {
     private final PartnerTokenService partnerTokenService;
-    private final GeumsangmallAccessKeyService geumsangmallAccessKeyService;
+    private final PartnerClientSecretAuthService partnerClientSecretAuthService;
 
     public PartnerApiTokenInterceptor(PartnerTokenService partnerTokenService,
-                                      GeumsangmallAccessKeyService geumsangmallAccessKeyService) {
+                                      PartnerClientSecretAuthService partnerClientSecretAuthService) {
         this.partnerTokenService = partnerTokenService;
-        this.geumsangmallAccessKeyService = geumsangmallAccessKeyService;
+        this.partnerClientSecretAuthService = partnerClientSecretAuthService;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        AuthenticatedPartnerToken accessKeyAuth = geumsangmallAccessKeyService.authenticate(extractAccessKey(request));
-        if (accessKeyAuth != null) {
-            request.setAttribute(AuthContext.REQUEST_ATTRIBUTE, accessKeyAuth);
+        AuthenticatedPartnerToken secretAuth = partnerClientSecretAuthService.authenticate(
+            request.getHeader("X-Client-Id"),
+            request.getHeader("X-Client-Secret")
+        );
+        if (secretAuth != null) {
+            request.setAttribute(AuthContext.REQUEST_ATTRIBUTE, secretAuth);
             return true;
         }
 
         String token = extractBearerToken(request.getHeader(HttpHeaders.AUTHORIZATION));
         if (token == null) {
-            writeUnauthorized(response, "Missing Bearer token or access key");
+            writeUnauthorized(response, "Missing Bearer token or client secret");
             return false;
         }
 
@@ -45,14 +47,6 @@ public class PartnerApiTokenInterceptor implements HandlerInterceptor {
 
         request.setAttribute(AuthContext.REQUEST_ATTRIBUTE, authenticatedToken);
         return true;
-    }
-
-    private String extractAccessKey(HttpServletRequest request) {
-        String accessKey = request.getHeader("X-Geumsangmall-Access-Key");
-        if (accessKey == null || accessKey.isBlank()) {
-            accessKey = request.getHeader("X-Access-Key");
-        }
-        return accessKey == null || accessKey.isBlank() ? null : accessKey.trim();
     }
 
     private String extractBearerToken(String authorization) {
