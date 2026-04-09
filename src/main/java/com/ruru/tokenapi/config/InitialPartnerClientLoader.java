@@ -24,7 +24,7 @@ public class InitialPartnerClientLoader implements ApplicationRunner {
             }
             partnerClientService.register(new RegisterPartnerClientRequest(
                 initialClient.getClientId(),
-                initialClient.getClientSecret(),
+                null,
                 initialClient.getSystemCode(),
                 initialClient.getCallSource(),
                 initialClient.isActive(),

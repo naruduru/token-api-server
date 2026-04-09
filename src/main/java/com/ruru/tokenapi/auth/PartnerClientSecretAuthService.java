@@ -5,15 +5,15 @@ import com.ruru.tokenapi.client.PartnerClientService;
 import com.ruru.tokenapi.partner.CallSource;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-
 @Service
 public class PartnerClientSecretAuthService {
     private final PartnerClientService partnerClientService;
+    private final PartnerSharedSecretService partnerSharedSecretService;
 
-    public PartnerClientSecretAuthService(PartnerClientService partnerClientService) {
+    public PartnerClientSecretAuthService(PartnerClientService partnerClientService,
+                                          PartnerSharedSecretService partnerSharedSecretService) {
         this.partnerClientService = partnerClientService;
+        this.partnerSharedSecretService = partnerSharedSecretService;
     }
 
     public AuthenticatedPartnerToken authenticate(String clientId, String clientSecret) {
@@ -25,7 +25,7 @@ public class PartnerClientSecretAuthService {
         if (client == null || client.callSource() != CallSource.INTERNAL_BACKEND) {
             return null;
         }
-        if (!matches(client.clientSecret(), clientSecret)) {
+        if (!partnerSharedSecretService.matches(clientSecret)) {
             return null;
         }
 
@@ -43,19 +43,9 @@ public class PartnerClientSecretAuthService {
             throw new IllegalArgumentException("clientId and clientSecret are required");
         }
         PartnerClient client = partnerClientService.findActiveClient(clientId.trim());
-        if (client == null || !matches(client.clientSecret(), clientSecret)) {
+        if (client == null || !partnerSharedSecretService.matches(clientSecret)) {
             throw new IllegalArgumentException("Invalid client credentials");
         }
         return client;
-    }
-
-    private boolean matches(String expectedValue, String actualValue) {
-        if (expectedValue == null || expectedValue.isBlank() || actualValue == null || actualValue.isBlank()) {
-            return false;
-        }
-        return MessageDigest.isEqual(
-            expectedValue.trim().getBytes(StandardCharsets.UTF_8),
-            actualValue.trim().getBytes(StandardCharsets.UTF_8)
-        );
     }
 }

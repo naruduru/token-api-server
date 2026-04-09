@@ -79,19 +79,6 @@ public class AdminPartnerClientController extends AdminProtectedController {
         ));
     }
 
-    @PostMapping("/{clientId}/secret")
-    public Map<String, Object> rotateClientSecret(@PathVariable String clientId) {
-        var client = partnerClientService.rotateSecret(clientId);
-        if (client == null) {
-            throw new ResponseStatusException(NOT_FOUND, "Client not found");
-        }
-        return Map.of(
-            "message", "client secret rotated",
-            "clientId", client.clientId(),
-            "clientSecret", client.clientSecret()
-        );
-    }
-
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException e) {
         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

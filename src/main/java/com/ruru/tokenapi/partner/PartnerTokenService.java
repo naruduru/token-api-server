@@ -1,5 +1,6 @@
 package com.ruru.tokenapi.partner;
 
+import com.ruru.tokenapi.auth.PartnerSharedSecretService;
 import com.ruru.tokenapi.auth.AuthenticatedPartnerToken;
 import com.ruru.tokenapi.client.PartnerClient;
 import com.ruru.tokenapi.client.PartnerClientService;
@@ -15,16 +16,19 @@ import java.util.List;
 @Service
 public class PartnerTokenService {
     private final PartnerClientService partnerClientService;
+    private final PartnerSharedSecretService partnerSharedSecretService;
     private final PartnerTokenStore partnerTokenStore;
     private final PartnerJwtService partnerJwtService;
     private final TokenApiProperties properties;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public PartnerTokenService(PartnerClientService partnerClientService,
+                               PartnerSharedSecretService partnerSharedSecretService,
                                PartnerTokenStore partnerTokenStore,
                                PartnerJwtService partnerJwtService,
                                TokenApiProperties properties) {
         this.partnerClientService = partnerClientService;
+        this.partnerSharedSecretService = partnerSharedSecretService;
         this.partnerTokenStore = partnerTokenStore;
         this.partnerJwtService = partnerJwtService;
         this.properties = properties;
@@ -35,38 +39,14 @@ public class PartnerTokenService {
         String clientSecret = requireText(request.clientSecret(), "clientSecret is required");
 
         PartnerClient client = partnerClientService.findActiveClient(clientId);
-        if (client == null || !client.clientSecret().equals(clientSecret)) {
+        if (client == null || !partnerSharedSecretService.matches(clientSecret)) {
             throw new IllegalArgumentException("Invalid client credentials");
         }
         if (client.callSource() != CallSource.DMZ_FRONT) {
             throw new IllegalArgumentException("Client uses secret key authentication");
         }
 
-        return issueTokenForClient(client, properties.getAccessTokenTtlSeconds(), properties.getRefreshTokenTtlSeconds());
-    }
-
-    public IssuedPartnerToken refreshToken(RefreshPartnerTokenRequest request) {
-        String clientId = requireText(request.clientId(), "clientId is required");
-        String refreshToken = requireText(request.refreshToken(), "refreshToken is required");
-
-        ActiveRefreshToken activeRefreshToken = partnerTokenStore.findRefreshToken(refreshToken);
-        if (activeRefreshToken == null || activeRefreshToken.expiresAt() == null || !activeRefreshToken.expiresAt().isAfter(Instant.now())) {
-            throw new IllegalArgumentException("Invalid refresh token");
-        }
-        if (!activeRefreshToken.clientId().equals(clientId)) {
-            throw new IllegalArgumentException("Refresh token does not match clientId");
-        }
-
-        PartnerClient client = partnerClientService.findActiveClient(clientId);
-        if (client == null) {
-            throw new IllegalArgumentException("Client is not active");
-        }
-        if (client.systemCode() != activeRefreshToken.systemCode() || client.callSource() != activeRefreshToken.callSource()) {
-            throw new IllegalArgumentException("Refresh token does not match client");
-        }
-
-        partnerTokenStore.deleteRefreshToken(refreshToken);
-        return issueTokenForClient(client, properties.getAccessTokenTtlSeconds(), properties.getRefreshTokenTtlSeconds());
+        return issueTokenForClient(client, properties.getAccessTokenTtlSeconds());
     }
 
     public AuthenticatedPartnerToken authenticate(String accessToken) {
@@ -187,12 +167,10 @@ public class PartnerTokenService {
         return value.trim();
     }
 
-    private IssuedPartnerToken issueTokenForClient(PartnerClient client, long expiresIn, long refreshExpiresIn) {
+    private IssuedPartnerToken issueTokenForClient(PartnerClient client, long expiresIn) {
         Instant issuedAt = Instant.now();
         Instant expiresAt = issuedAt.plusSeconds(expiresIn);
-        Instant refreshExpiresAt = issuedAt.plusSeconds(refreshExpiresIn);
         String tokenId = randomId(18);
-        String refreshToken = randomId(32);
         String accessToken = partnerJwtService.issueToken(
             client.clientId(),
             tokenId,
@@ -213,25 +191,10 @@ public class PartnerTokenService {
             ),
             Duration.ofSeconds(expiresIn)
         );
-        partnerTokenStore.saveRefreshToken(
-            refreshToken,
-            new ActiveRefreshToken(
-                refreshToken,
-                tokenId,
-                client.clientId(),
-                client.systemCode(),
-                client.callSource(),
-                issuedAt,
-                refreshExpiresAt
-            ),
-            Duration.ofSeconds(refreshExpiresIn)
-        );
 
         return new IssuedPartnerToken(
             accessToken,
-            refreshToken,
             expiresIn,
-            refreshExpiresIn,
             client.systemCode(),
             client.callSource()
         );

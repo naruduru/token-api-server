@@ -25,6 +25,30 @@
       "response": []
     },
     {
+      "name": "Issue Shared Secret",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Admin-Secret",
+            "value": "{{adminSecret}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/partner-shared-secret",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "partner-shared-secret"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Register Geumsangmall Front Client",
       "request": {
         "method": "POST",
@@ -40,7 +64,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"clientId\": \"geumsangmall-front\",\n  \"clientSecret\": \"front-secret\",\n  \"systemCode\": \"GEUMSANGMALL\",\n  \"callSource\": \"DMZ_FRONT\",\n  \"active\": true,\n  \"scopes\": [\"api.read\"],\n  \"description\": \"금상몰 프론트 호출용\"\n}"
+          "raw": "{\n  \"systemCode\": \"GEUMSANGMALL\",\n  \"callSource\": \"DMZ_FRONT\",\n  \"active\": true,\n  \"scopes\": [\"api.read\"],\n  \"description\": \"금상몰 프론트 호출용\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/api/admin/partner-clients",
@@ -71,9 +95,6 @@
               "var json = pm.response.json();",
               "if (json.accessToken) {",
               "  pm.environment.set('partnerAccessToken', json.accessToken);",
-              "}",
-              "if (json.refreshToken) {",
-              "  pm.environment.set('refreshToken', json.refreshToken);",
               "}"
             ]
           }
@@ -89,7 +110,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"clientId\": \"geumsangmall-front\",\n  \"clientSecret\": \"{{geumsangmallClientSecret}}\"\n}"
+          "raw": "{\n  \"clientId\": \"geumsangmall-front\",\n  \"clientSecret\": \"{{sharedSecret}}\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/api/internal/token",
@@ -100,64 +121,6 @@
             "api",
             "internal",
             "token"
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Refresh Partner Token",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"clientId\": \"geumsangmall-front\",\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/api/internal/token/refresh",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "internal",
-            "token",
-            "refresh"
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Issue Geumsangmall WSS Secret",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "X-Client-Id",
-            "value": "geumsangmall-front"
-          },
-          {
-            "key": "X-Client-Secret",
-            "value": "{{geumsangmallClientSecret}}"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/api/external/geumsangmall/wss-secret",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "external",
-            "geumsangmall",
-            "wss-secret"
           ]
         }
       },
@@ -221,38 +184,7 @@
       "response": []
     },
     {
-      "name": "Get Revocation History",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "X-Admin-Secret",
-            "value": "{{adminSecret}}"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/api/admin/partner-tokens/revocations?limit=20",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "admin",
-            "partner-tokens",
-            "revocations"
-          ],
-          "query": [
-            {
-              "key": "limit",
-              "value": "20"
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Internal Ping",
+      "name": "Internal Ping With Token",
       "request": {
         "method": "GET",
         "header": [
@@ -286,7 +218,7 @@
           },
           {
             "key": "X-Client-Secret",
-            "value": "{{statisticsClientSecret}}"
+            "value": "{{sharedSecret}}"
           }
         ],
         "url": {

@@ -11,7 +11,6 @@ import java.util.List;
 public class RedisPartnerTokenStore implements PartnerTokenStore {
     private static final String REVOKED_INDEX_KEY = "partner:revoke:ids";
     private static final String CLIENT_TOKEN_INDEX_PREFIX = "partner:client:tokens:";
-    private static final String REFRESH_BY_ACCESS_PREFIX = "partner:refresh:access:";
     private final StringRedisTemplate redisTemplate;
 
     public RedisPartnerTokenStore(StringRedisTemplate redisTemplate) {
@@ -78,65 +77,6 @@ public class RedisPartnerTokenStore implements PartnerTokenStore {
     }
 
     @Override
-    public void saveRefreshToken(String refreshToken, ActiveRefreshToken token, Duration ttl) {
-        String value = token.accessTokenId()
-            + "|"
-            + token.clientId()
-            + "|"
-            + token.systemCode().name()
-            + "|"
-            + token.callSource().name()
-            + "|"
-            + token.issuedAt().toString()
-            + "|"
-            + token.expiresAt().toString();
-        redisTemplate.opsForValue().set(refreshTokenKey(refreshToken), value, ttl);
-        redisTemplate.opsForValue().set(refreshAccessKey(token.accessTokenId()), refreshToken, ttl);
-    }
-
-    @Override
-    public ActiveRefreshToken findRefreshToken(String refreshToken) {
-        String value = redisTemplate.opsForValue().get(refreshTokenKey(refreshToken));
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-
-        String[] parts = value.split("\\|", -1);
-        if (parts.length < 6) {
-            throw new IllegalStateException("Invalid refresh token payload");
-        }
-
-        return new ActiveRefreshToken(
-            refreshToken,
-            parts[0],
-            parts[1],
-            SystemCode.valueOf(parts[2]),
-            CallSource.valueOf(parts[3]),
-            Instant.parse(parts[4]),
-            Instant.parse(parts[5])
-        );
-    }
-
-    @Override
-    public ActiveRefreshToken findRefreshTokenByAccessTokenId(String accessTokenId) {
-        String refreshToken = redisTemplate.opsForValue().get(refreshAccessKey(accessTokenId));
-        if (refreshToken == null || refreshToken.isBlank()) {
-            return null;
-        }
-        return findRefreshToken(refreshToken);
-    }
-
-    @Override
-    public void deleteRefreshToken(String refreshToken) {
-        ActiveRefreshToken refreshTokenData = findRefreshToken(refreshToken);
-        if (refreshTokenData == null) {
-            return;
-        }
-        redisTemplate.delete(refreshTokenKey(refreshToken));
-        redisTemplate.delete(refreshAccessKey(refreshTokenData.accessTokenId()));
-    }
-
-    @Override
     public void revoke(RevokedPartnerToken token, Duration ttl) {
         String value = token.clientId()
             + "|"
@@ -150,10 +90,6 @@ public class RedisPartnerTokenStore implements PartnerTokenStore {
         redisTemplate.opsForValue().set(revokeKey(token.tokenId()), value, ttl);
         redisTemplate.opsForList().leftPush(REVOKED_INDEX_KEY, token.tokenId());
         deleteActiveToken(token.tokenId());
-        ActiveRefreshToken refreshToken = findRefreshTokenByAccessTokenId(token.tokenId());
-        if (refreshToken != null) {
-            deleteRefreshToken(refreshToken.refreshToken());
-        }
     }
 
     @Override
@@ -183,14 +119,6 @@ public class RedisPartnerTokenStore implements PartnerTokenStore {
 
     private String clientTokenIndexKey(String clientId) {
         return CLIENT_TOKEN_INDEX_PREFIX + clientId;
-    }
-
-    private String refreshTokenKey(String refreshToken) {
-        return "partner:refresh:" + refreshToken;
-    }
-
-    private String refreshAccessKey(String accessTokenId) {
-        return REFRESH_BY_ACCESS_PREFIX + accessTokenId;
     }
 
     private RevokedPartnerToken findRevokedToken(String tokenId) {

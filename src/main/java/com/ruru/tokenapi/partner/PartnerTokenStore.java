@@ -8,10 +8,6 @@ public interface PartnerTokenStore {
     ActivePartnerToken findActiveToken(String tokenId);
     List<ActivePartnerTokenWithId> findActiveTokensByClientId(String clientId);
     void deleteActiveToken(String tokenId);
-    void saveRefreshToken(String refreshToken, ActiveRefreshToken token, Duration ttl);
-    ActiveRefreshToken findRefreshToken(String refreshToken);
-    ActiveRefreshToken findRefreshTokenByAccessTokenId(String accessTokenId);
-    void deleteRefreshToken(String refreshToken);
     void revoke(RevokedPartnerToken token, Duration ttl);
     boolean isRevoked(String tokenId);
     List<RevokedPartnerToken> findRevokedTokens(int limit);

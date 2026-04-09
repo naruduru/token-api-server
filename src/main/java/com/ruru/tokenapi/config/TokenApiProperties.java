@@ -11,11 +11,9 @@ import java.util.List;
 public class TokenApiProperties {
     private String adminSecret;
     private long accessTokenTtlSeconds = 1800;
-    private long refreshTokenTtlSeconds = 1209600;
     private String issuer = "token-api-server";
     private String jwtSecret = "change-me-jwt-secret-change-me-jwt-secret";
     private List<InitialClient> initialClients = new ArrayList<>();
-    private Geumsangmall geumsangmall = new Geumsangmall();
 
     public String getAdminSecret() {
         return adminSecret;
@@ -31,14 +29,6 @@ public class TokenApiProperties {
 
     public void setAccessTokenTtlSeconds(long accessTokenTtlSeconds) {
         this.accessTokenTtlSeconds = accessTokenTtlSeconds;
-    }
-
-    public long getRefreshTokenTtlSeconds() {
-        return refreshTokenTtlSeconds;
-    }
-
-    public void setRefreshTokenTtlSeconds(long refreshTokenTtlSeconds) {
-        this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
     }
 
     public String getIssuer() {
@@ -63,14 +53,6 @@ public class TokenApiProperties {
 
     public void setInitialClients(List<InitialClient> initialClients) {
         this.initialClients = initialClients;
-    }
-
-    public Geumsangmall getGeumsangmall() {
-        return geumsangmall;
-    }
-
-    public void setGeumsangmall(Geumsangmall geumsangmall) {
-        this.geumsangmall = geumsangmall;
     }
 
     public static class InitialClient {
@@ -139,24 +121,4 @@ public class TokenApiProperties {
         }
     }
 
-    public static class Geumsangmall {
-        private String clientId = "geumsangmall-front";
-        private long wssSecretTtlSeconds = 30;
-
-        public String getClientId() {
-            return clientId;
-        }
-
-        public void setClientId(String clientId) {
-            this.clientId = clientId;
-        }
-
-        public long getWssSecretTtlSeconds() {
-            return wssSecretTtlSeconds;
-        }
-
-        public void setWssSecretTtlSeconds(long wssSecretTtlSeconds) {
-            this.wssSecretTtlSeconds = wssSecretTtlSeconds;
-        }
-    }
 }

@@ -55,8 +55,8 @@ class AdminPartnerClientControllerTest {
     @Test
     void registersClient() throws Exception {
         given(partnerClientService.register(any())).willReturn(new PartnerClient(
-            "geumsangmall-front",
-            "secret",
+            "geumsangmall-dmz-front-generated",
+            "shared-secret",
             SystemCode.GEUMSANGMALL,
             CallSource.DMZ_FRONT,
             true,
@@ -69,8 +69,6 @@ class AdminPartnerClientControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "clientId":"geumsangmall-front",
-                      "clientSecret":"secret",
                       "systemCode":"GEUMSANGMALL",
                       "callSource":"DMZ_FRONT",
                       "active":true,
@@ -78,8 +76,8 @@ class AdminPartnerClientControllerTest {
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.clientId").value("geumsangmall-front"))
-            .andExpect(jsonPath("$.clientSecret").value("secret"))
+            .andExpect(jsonPath("$.clientId").value("geumsangmall-dmz-front-generated"))
+            .andExpect(jsonPath("$.clientSecret").value("shared-secret"))
             .andExpect(jsonPath("$.systemCode").value("GEUMSANGMALL"))
             .andExpect(jsonPath("$.callSource").value("DMZ_FRONT"));
     }
@@ -130,22 +128,4 @@ class AdminPartnerClientControllerTest {
             .andExpect(jsonPath("$.clientId").value("statistics-backend"));
     }
 
-    @Test
-    void rotatesClientSecret() throws Exception {
-        given(partnerClientService.rotateSecret("statistics-backend")).willReturn(new PartnerClient(
-            "statistics-backend",
-            "rotated-secret",
-            SystemCode.STATISTICS,
-            CallSource.INTERNAL_BACKEND,
-            true,
-            List.of("api.read"),
-            "통계시스템 백엔드 호출용"
-        ));
-
-        mockMvc.perform(post("/api/admin/partner-clients/statistics-backend/secret")
-                .header("X-Admin-Secret", "admin-secret"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.message").value("client secret rotated"))
-            .andExpect(jsonPath("$.clientSecret").value("rotated-secret"));
-    }
 }

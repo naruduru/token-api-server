@@ -1,5 +1,6 @@
 package com.ruru.tokenapi.client;
 
+import com.ruru.tokenapi.auth.PartnerSharedSecretService;
 import com.ruru.tokenapi.partner.CallSource;
 import com.ruru.tokenapi.partner.SystemCode;
 import org.springframework.stereotype.Service;
@@ -7,19 +8,23 @@ import org.springframework.stereotype.Service;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Base64;
+import java.util.Locale;
 
 @Service
 public class PartnerClientService {
     private final PartnerClientStore partnerClientStore;
+    private final PartnerSharedSecretService partnerSharedSecretService;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public PartnerClientService(PartnerClientStore partnerClientStore) {
+    public PartnerClientService(PartnerClientStore partnerClientStore,
+                                PartnerSharedSecretService partnerSharedSecretService) {
         this.partnerClientStore = partnerClientStore;
+        this.partnerSharedSecretService = partnerSharedSecretService;
     }
 
     public PartnerClient register(RegisterPartnerClientRequest request) {
-        String clientId = requireText(request.clientId(), "clientId is required");
-        String clientSecret = normalizeSecret(request.clientSecret());
+        String clientId = normalizeClientId(request.clientId(), request.systemCode(), request.callSource());
+        String clientSecret = partnerSharedSecretService.getOrCreate();
         if (request.systemCode() == null) {
             throw new IllegalArgumentException("systemCode is required");
         }
@@ -70,25 +75,6 @@ public class PartnerClientService {
         return true;
     }
 
-    public PartnerClient rotateSecret(String clientId) {
-        String normalizedClientId = requireText(clientId, "clientId is required");
-        PartnerClient client = partnerClientStore.findByClientId(normalizedClientId);
-        if (client == null) {
-            return null;
-        }
-        PartnerClient updatedClient = new PartnerClient(
-            client.clientId(),
-            generateSecret(),
-            client.systemCode(),
-            client.callSource(),
-            client.active(),
-            client.scopes(),
-            client.description()
-        );
-        partnerClientStore.save(updatedClient);
-        return updatedClient;
-    }
-
     private void validateAllowedCombination(SystemCode systemCode, CallSource callSource) {
         boolean allowed = switch (systemCode) {
             case GEUMSANGMALL -> callSource == CallSource.DMZ_FRONT;
@@ -124,15 +110,19 @@ public class PartnerClientService {
             .toList();
     }
 
-    private String normalizeSecret(String clientSecret) {
-        if (clientSecret == null || clientSecret.isBlank()) {
-            return generateSecret();
+    private String normalizeClientId(String clientId, SystemCode systemCode, CallSource callSource) {
+        if (clientId != null && !clientId.isBlank()) {
+            return clientId.trim();
         }
-        return clientSecret.trim();
+        if (systemCode == null || callSource == null) {
+            throw new IllegalArgumentException("clientId is required");
+        }
+        String prefix = systemCode.name().toLowerCase(Locale.ROOT) + "-" + callSource.name().toLowerCase(Locale.ROOT).replace('_', '-');
+        return prefix + "-" + randomId(6);
     }
 
-    private String generateSecret() {
-        byte[] random = new byte[32];
+    private String randomId(int bytes) {
+        byte[] random = new byte[bytes];
         secureRandom.nextBytes(random);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     }
